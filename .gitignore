@@ -1,0 +1,107 @@
+# --- Build outputs ---
+build/
+target/
+out/
+dist/
+*.o
+*.so
+*.a
+*.dylib
+*.dll
+*.exe
+
+# C++ build artifacts
+cpp-core/build/
+cpp-core/cmake-build-*/
+*.cmake
+CMakeCache.txt
+CMakeFiles/
+Testing/
+_deps/
+
+# Rust build artifacts
+rust-api/**/target/
+**/*.rs.bk
+Cargo.lock  # Keep for binaries, ignore for libraries
+
+# --- IDE & Editors ---
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# --- Python (for docs & scripts) ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# --- Lean 4 ---
+formal/lake-packages/
+formal/.lake/
+formal/build/
+
+# --- Documentation ---
+site/
+docs/_build/
+docs/.doctrees/
+
+# --- Benchmarks & Performance ---
+benches/results/
+*.profdata
+*.profraw
+perf.data*
+flamegraph.svg
+criterion_outputs/
+
+# --- Security & Secrets ---
+*.key
+*.pem
+*.crt
+*.p12
+secrets/
+.env
+.env.local
+
+# --- Test artifacts ---
+tests/artifacts/
+tests/test_vectors/*.actual
+fuzz/corpus/
+fuzz/artifacts/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Temporary files ---
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# --- OS-specific ---
+Thumbs.db
+Desktop.ini
+
+# --- Package managers ---
+vcpkg_installed/
+node_modules/
+.npm/
+
+# --- Audit reports (keep redacted versions) ---
+audits/*.pdf
+!audits/README.md

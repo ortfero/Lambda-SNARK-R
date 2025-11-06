@@ -1,0 +1,22 @@
+[package]
+name = "lambda-snark-sys"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "FFI bindings to ΛSNARK-R C++ core"
+build = "build.rs"
+links = "lambda_snark_core"
+
+[lib]
+name = "lambda_snark_sys"
+
+[dependencies]
+
+[build-dependencies]
+cmake = "0.1"
+bindgen = "0.69"
+
+[features]
+default = []

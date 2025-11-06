@@ -1,0 +1,63 @@
+# Auto-detect text files
+* text=auto
+
+# Source code
+*.cpp text eol=lf
+*.h text eol=lf
+*.hpp text eol=lf
+*.c text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.lean text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Configuration
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+
+# Scripts
+*.sh text eol=lf
+Makefile text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.tgz binary
+*.so binary
+*.a binary
+*.dylib binary
+*.dll binary
+*.exe binary
+
+# Linguist overrides (for GitHub stats)
+cpp-core/include/*.h linguist-language=C++
+rust-api/**/*.rs linguist-language=Rust
+formal/**/*.lean linguist-language=Lean
+docs/** linguist-documentation
+examples/** linguist-documentation
+benches/** linguist-generated=false
+
+# Diff settings
+*.cpp diff=cpp
+*.h diff=cpp
+*.rs diff=rust
+*.lean diff
+*.md diff=markdown

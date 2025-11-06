@@ -1,0 +1,38 @@
+{
+  "name": "lambda-snark-core",
+  "version-string": "0.1.0",
+  "description": "ΛSNARK-R C++ Performance Kernel Dependencies",
+  "homepage": "https://github.com/URPKS/lambda-snark-r",
+  "dependencies": [
+    {
+      "name": "seal",
+      "version>=": "4.1.0",
+      "features": ["no-throw-tran"]
+    },
+    {
+      "name": "ntl",
+      "version>=": "11.5.0"
+    },
+    {
+      "name": "gmp",
+      "version>=": "6.2.0"
+    },
+    {
+      "name": "eigen3",
+      "version>=": "3.4.0"
+    },
+    {
+      "name": "libsodium",
+      "version>=": "1.0.18"
+    },
+    {
+      "name": "gtest",
+      "version>=": "1.14.0"
+    },
+    {
+      "name": "benchmark",
+      "version>=": "1.8.0"
+    }
+  ],
+  "builtin-baseline": "2024.01.12"
+}

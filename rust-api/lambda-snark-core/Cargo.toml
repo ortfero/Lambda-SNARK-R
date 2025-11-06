@@ -1,0 +1,19 @@
+[package]
+name = "lambda-snark-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core types for ΛSNARK-R (#![no_std] compatible)"
+
+[lib]
+name = "lambda_snark_core"
+
+[dependencies]
+serde = { workspace = true, default-features = false, features = ["derive"] }
+zeroize = { workspace = true, default-features = false }
+
+[features]
+default = ["std"]
+std = ["serde/std", "zeroize/std"]

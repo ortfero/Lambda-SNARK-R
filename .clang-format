@@ -1,0 +1,44 @@
+---
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+UseTab: Never
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Braces
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Spaces
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+
+# Alignment
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignOperands: true
+
+# Includes
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^"lambda_snark/'
+    Priority:        1
+  - Regex:           '^<(seal|NTL|Eigen|sodium)/'
+    Priority:        2
+  - Regex:           '^<[^/]+>'
+    Priority:        3
+  - Regex:           '.*'
+    Priority:        4
+
+# Comments
+ReflowComments: true
+AlignTrailingComments: true
+
+# Other
+DerivePointerAlignment: false
+Standard: c++17

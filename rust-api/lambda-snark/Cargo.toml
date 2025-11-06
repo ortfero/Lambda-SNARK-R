@@ -1,0 +1,32 @@
+[package]
+name = "lambda-snark"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ΛSNARK-R: Post-quantum SNARK over lattices"
+readme = "README.md"
+
+[lib]
+name = "lambda_snark"
+
+[dependencies]
+lambda-snark-core = { path = "../lambda-snark-core" }
+lambda-snark-sys = { path = "../lambda-snark-sys" }
+
+serde = { workspace = true }
+zeroize = { workspace = true }
+subtle = { workspace = true }
+rand_core = { workspace = true }
+rand_chacha = { workspace = true }
+sha3 = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "commitment"
+harness = false

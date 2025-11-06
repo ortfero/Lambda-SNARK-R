@@ -1,0 +1,95 @@
+site_name: ΛSNARK-R Documentation
+site_url: https://lambda-snark-r.readthedocs.io/
+repo_url: https://github.com/URPKS/lambda-snark-r
+repo_name: URPKS/lambda-snark-r
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Specification:
+    - Overview: spec/specification.md
+    - Cryptographic Primitives: spec/primitives.md
+    - R1CS Arithmetic: spec/r1cs.md
+    - Protocol: spec/protocol.md
+    - Security Analysis: spec/security.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - C++ Core: architecture/cpp-core.md
+    - Rust API: architecture/rust-api.md
+    - FFI Design: architecture/ffi.md
+  - User Guide:
+    - Installation: guide/installation.md
+    - Quick Start: guide/quickstart.md
+    - Examples: guide/examples.md
+    - Performance Tuning: guide/performance.md
+  - API Reference:
+    - Rust API: api/rust.md
+    - C++ API: api/cpp.md
+  - Development:
+    - Contributing: ../CONTRIBUTING.md
+    - Roadmap: ../ROADMAP.md
+    - Changelog: ../CHANGELOG.md
+  - Security:
+    - Security Policy: ../SECURITY.md
+    - Audit Reports: security/audits.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/URPKS/lambda-snark-r

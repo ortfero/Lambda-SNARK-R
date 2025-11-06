@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  cpp-core:
+    name: C++ Core (Ubuntu)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build libgtest-dev libgmp-dev libeigen3-dev libsodium-dev
+    
+    - name: Configure
+      working-directory: cpp-core
+      run: cmake -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DLAMBDA_SNARK_BUILD_TESTS=ON
+    
+    - name: Build
+      working-directory: cpp-core
+      run: cmake --build build
+    
+    - name: Test
+      working-directory: cpp-core/build
+      run: ctest --output-on-failure
+  
+  rust-api:
+    name: Rust API (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        rust: [stable]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt, clippy
+    
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          rust-api/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Install C++ dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake libgmp-dev libeigen3-dev libsodium-dev
+    
+    - name: Install C++ dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: brew install cmake gmp eigen libsodium
+    
+    - name: Check formatting
+      working-directory: rust-api
+      run: cargo fmt --all -- --check
+    
+    - name: Clippy
+      working-directory: rust-api
+      run: cargo clippy --all-targets --all-features -- -D warnings
+    
+    - name: Build
+      working-directory: rust-api
+      run: cargo build --all-features
+    
+    - name: Test
+      working-directory: rust-api
+      run: cargo test --all
+  
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+    
+    - name: Run cargo-audit
+      working-directory: rust-api
+      run: cargo audit
+  
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake libgmp-dev libeigen3-dev libsodium-dev
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install tarpaulin
+      run: cargo install cargo-tarpaulin
+    
+    - name: Generate coverage
+      working-directory: rust-api
+      run: cargo tarpaulin --all-features --workspace --out xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: rust-api/cobertura.xml
+        fail_ci_if_error: false
