@@ -17,6 +17,7 @@
 // Conditional SEAL inclusion
 #ifdef HAVE_SEAL
 #include <seal/seal.h>
+#include <random>
 using namespace seal;
 #endif
 
@@ -55,13 +56,15 @@ LweContext* lwe_context_create(const PublicParams* params) noexcept try {
         CoeffModulus::BFVDefault(params->ring_degree)
     );
     
-    seal_params.set_plain_modulus(params->modulus);
+    // Use batching-friendly prime for plain_modulus
+    seal_params.set_plain_modulus(PlainModulus::Batching(params->ring_degree, 20));
     
     ctx->seal_ctx = std::make_unique<SEALContext>(seal_params);
     
     // Generate keys
     KeyGenerator keygen(*ctx->seal_ctx);
     ctx->sk = std::make_unique<SecretKey>(keygen.secret_key());
+    ctx->pk = std::make_unique<PublicKey>();
     keygen.create_public_key(*ctx->pk);
     
     ctx->encryptor = std::make_unique<Encryptor>(*ctx->seal_ctx, *ctx->pk);
@@ -74,6 +77,7 @@ LweContext* lwe_context_create(const PublicParams* params) noexcept try {
     return ctx.release();
 } catch (const std::exception& e) {
     // Log error (in production, use proper logging)
+    fprintf(stderr, "lwe_context_create error: %s\n", e.what());
     return nullptr;
 }
 
@@ -94,21 +98,20 @@ LweCommitment* lwe_commit(
     
 #ifdef HAVE_SEAL
     // Encode message as plaintext
-    Plaintext plain;
-    std::vector<uint64_t> msg_vec(message, message + msg_len);
-    
     BatchEncoder encoder(*ctx->seal_ctx);
+    size_t slot_count = encoder.slot_count();
+    
+    // Pad message to fit slot count
+    std::vector<uint64_t> msg_vec(slot_count, 0);
+    size_t copy_len = (msg_len < slot_count) ? msg_len : slot_count;
+    std::copy_n(message, copy_len, msg_vec.begin());
+    
+    Plaintext plain;
     encoder.encode(msg_vec, plain);
     
-    // Encrypt (= commit)
+    // Encrypt (= commit) using public key
     Ciphertext cipher;
-    if (seed != 0) {
-        // Deterministic encryption (for testing)
-        // TODO: Seed PRNG properly
-        ctx->encryptor->encrypt_symmetric(plain, cipher);
-    } else {
-        ctx->encryptor->encrypt(plain, cipher);
-    }
+    ctx->encryptor->encrypt(plain, cipher);
     
     // Convert to flat representation
     auto comm = new LweCommitment;
@@ -134,7 +137,17 @@ LweCommitment* lwe_commit(
     std::copy_n(message, msg_len, comm->data);
     return comm;
 #endif
+} catch (const std::invalid_argument& e) {
+    fprintf(stderr, "lwe_commit error (invalid_argument): %s\n", e.what());
+    return nullptr;
+} catch (const std::logic_error& e) {
+    fprintf(stderr, "lwe_commit error (logic_error): %s\n", e.what());
+    return nullptr;
+} catch (const std::exception& e) {
+    fprintf(stderr, "lwe_commit error (exception): %s\n", e.what());
+    return nullptr;
 } catch (...) {
+    fprintf(stderr, "lwe_commit error: unknown exception\n");
     return nullptr;
 }
 

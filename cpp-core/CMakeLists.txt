@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 
+# vcpkg integration (if available)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../vcpkg/installed/x64-linux")
+    list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../vcpkg/installed/x64-linux")
+    message(STATUS "Using vcpkg packages from: ${CMAKE_CURRENT_SOURCE_DIR}/../vcpkg/installed/x64-linux")
+endif()
+
 project(LambdaSNARK_Core
     VERSION 0.1.0
     DESCRIPTION "ΛSNARK-R C++ Performance Kernel"

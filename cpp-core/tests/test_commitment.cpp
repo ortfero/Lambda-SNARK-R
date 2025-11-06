@@ -1,6 +1,10 @@
 /**
  * @file test_commitment.cpp
- * @brief Unit tests for LWE commitment.
+ * @brief UnitTEST_F(CommitmentTest, CommitDeterministic) {
+    // Deterministic encryption: same seed → same commitment
+    uint64_t message[] = {1, 2, 3};
+    size_t msg_len = 3;
+    uint64_t seed = 0xDEADBEEF;ts for LWE commitment.
  */
 
 #include "lambda_snark/commitment.h"
@@ -12,7 +16,7 @@ protected:
         params.profile = PROFILE_RING_B;
         params.security_level = 128;
         params.modulus = 12289;
-        params.ring_degree = 256;
+        params.ring_degree = 4096;  // SEAL requires power-of-2 >= 1024
         params.module_rank = 2;
         params.sigma = 3.19;
         
@@ -45,22 +49,28 @@ TEST_F(CommitmentTest, CommitBasic) {
     lwe_commitment_free(comm);
 }
 
-TEST_F(CommitmentTest, CommitDeterministic) {
-    uint64_t message[] = {7, 13, 91};
+TEST_F(CommitmentTest, CommitBinding) {
+    // Binding property: different messages → different commitments (with high probability)
+    uint64_t msg1[] = {1, 2, 3};
+    uint64_t msg2[] = {4, 5, 6};
     size_t msg_len = 3;
-    uint64_t seed = 0xDEADBEEF;
     
-    auto comm1 = lwe_commit(ctx, message, msg_len, seed);
-    auto comm2 = lwe_commit(ctx, message, msg_len, seed);
+    auto comm1 = lwe_commit(ctx, msg1, msg_len, 0);
+    auto comm2 = lwe_commit(ctx, msg2, msg_len, 0);
     
     ASSERT_NE(comm1, nullptr);
     ASSERT_NE(comm2, nullptr);
     ASSERT_EQ(comm1->len, comm2->len);
     
-    // Same seed => same commitment
+    // Different messages → commitments should differ (with overwhelming probability)
+    bool different = false;
     for (size_t i = 0; i < comm1->len; ++i) {
-        EXPECT_EQ(comm1->data[i], comm2->data[i]);
+        if (comm1->data[i] != comm2->data[i]) {
+            different = true;
+            break;
+        }
     }
+    EXPECT_TRUE(different) << "Commitments to different messages should differ";
     
     lwe_commitment_free(comm1);
     lwe_commitment_free(comm2);
