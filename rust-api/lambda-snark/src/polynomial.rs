@@ -4,6 +4,8 @@
 
 use lambda_snark_core::Field;
 use crate::Error;
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 
 /// Polynomial over F_q.
 #[derive(Clone, Debug, PartialEq)]
@@ -135,6 +137,104 @@ impl Polynomial {
     pub fn coefficients(&self) -> &[Field] {
         &self.coeffs
     }
+    
+    /// Generate random blinding polynomial for zero-knowledge.
+    ///
+    /// Creates polynomial r(X) = r₀ + r₁·X + ... + r_d·X^d where each r_i is
+    /// uniformly random in F_q. Used to hide witness polynomial f(X) by computing
+    /// f'(X) = f(X) + r(X).
+    ///
+    /// # Arguments
+    /// * `degree` - Polynomial degree (must match witness polynomial degree)
+    /// * `modulus` - Field modulus q
+    /// * `seed` - Optional RNG seed (None = cryptographically secure random)
+    ///
+    /// # Returns
+    /// Random polynomial r with deg(r) = degree
+    ///
+    /// # Security
+    /// - Uses ChaCha20 CSPRNG (cryptographically secure)
+    /// - If seed=None, uses OS entropy via `from_entropy()`
+    /// - Coefficients uniformly distributed over F_q
+    ///
+    /// # Example
+    /// ```
+    /// use lambda_snark::Polynomial;
+    ///
+    /// // Generate random degree-3 blinding polynomial
+    /// let r = Polynomial::random_blinding(3, 17592186044417, None);
+    /// assert_eq!(r.degree(), 3);
+    ///
+    /// // Deterministic blinding (for testing)
+    /// let r1 = Polynomial::random_blinding(3, 17592186044417, Some(42));
+    /// let r2 = Polynomial::random_blinding(3, 17592186044417, Some(42));
+    /// assert_eq!(r1, r2); // Same seed → same polynomial
+    /// ```
+    pub fn random_blinding(degree: usize, modulus: u64, seed: Option<u64>) -> Self {
+        let mut rng = if let Some(s) = seed {
+            ChaCha20Rng::seed_from_u64(s)
+        } else {
+            ChaCha20Rng::from_entropy()
+        };
+        
+        let coeffs: Vec<Field> = (0..=degree)
+            .map(|_| Field::new(rng.gen::<u64>() % modulus))
+            .collect();
+        
+        Self { coeffs, modulus }
+    }
+    
+    /// Add two polynomials: (f + g)(X) = f(X) + g(X) mod q.
+    ///
+    /// Performs coefficient-wise addition in F_q. If polynomials have different
+    /// degrees, the result has max degree. Used for blinding: f'(X) = f(X) + r(X).
+    ///
+    /// # Arguments
+    /// * `other` - Polynomial to add
+    ///
+    /// # Panics
+    /// Panics if polynomials have different moduli
+    ///
+    /// # Example
+    /// ```
+    /// use lambda_snark::Polynomial;
+    ///
+    /// let q = 17592186044417;
+    /// let f = Polynomial::from_witness(&[1, 2, 3], q);
+    /// let r = Polynomial::from_witness(&[10, 20, 30], q);
+    ///
+    /// // (f + r)(X) = (1+10) + (2+20)X + (3+30)X² = 11 + 22X + 33X²
+    /// let blinded = f.add(&r);
+    /// assert_eq!(blinded.coeff(0).unwrap().value(), 11);
+    /// assert_eq!(blinded.coeff(1).unwrap().value(), 22);
+    /// assert_eq!(blinded.coeff(2).unwrap().value(), 33);
+    /// ```
+    pub fn add(&self, other: &Polynomial) -> Self {
+        assert_eq!(
+            self.modulus, other.modulus,
+            "Cannot add polynomials with different moduli: {} vs {}",
+            self.modulus, other.modulus
+        );
+        
+        let max_len = self.coeffs.len().max(other.coeffs.len());
+        let mut result = Vec::with_capacity(max_len);
+        
+        for i in 0..max_len {
+            let a = self.coeffs.get(i).map(|f| f.value()).unwrap_or(0);
+            let b = other.coeffs.get(i).map(|f| f.value()).unwrap_or(0);
+            result.push(Field::new((a + b) % self.modulus));
+        }
+        
+        Self {
+            coeffs: result,
+            modulus: self.modulus,
+        }
+    }
+    
+    /// Get field modulus.
+    pub fn modulus(&self) -> u64 {
+        self.modulus
+    }
 }
 
 /// Modular multiplication: (a * b) mod m
@@ -245,4 +345,150 @@ mod tests {
         
         assert_eq!(horner, direct as u64);
     }
+    
+    // --- Zero-Knowledge: Blinding Polynomial Tests ---
+    
+    #[test]
+    fn test_random_blinding_degree() {
+        for degree in [0, 1, 3, 10] {
+            let r = Polynomial::random_blinding(degree, TEST_MODULUS, None);
+            assert_eq!(r.degree(), degree);
+            assert_eq!(r.len(), degree + 1);
+        }
+    }
+    
+    #[test]
+    fn test_random_blinding_deterministic() {
+        let seed = 42u64;
+        
+        let r1 = Polynomial::random_blinding(5, TEST_MODULUS, Some(seed));
+        let r2 = Polynomial::random_blinding(5, TEST_MODULUS, Some(seed));
+        
+        // Same seed → identical polynomials
+        assert_eq!(r1, r2);
+        for i in 0..=5 {
+            assert_eq!(r1.coeff(i), r2.coeff(i));
+        }
+    }
+    
+    #[test]
+    fn test_random_blinding_different_seeds() {
+        let r1 = Polynomial::random_blinding(3, TEST_MODULUS, Some(1));
+        let r2 = Polynomial::random_blinding(3, TEST_MODULUS, Some(2));
+        
+        // Different seeds → different polynomials (with high probability)
+        assert_ne!(r1, r2);
+    }
+    
+    #[test]
+    fn test_random_blinding_range() {
+        // Coefficients should be in [0, modulus)
+        let r = Polynomial::random_blinding(10, TEST_MODULUS, Some(123));
+        
+        for i in 0..=10 {
+            let coeff = r.coeff(i).unwrap().value();
+            assert!(coeff < TEST_MODULUS, "Coefficient {} = {} exceeds modulus", i, coeff);
+        }
+    }
+    
+    #[test]
+    fn test_random_blinding_non_deterministic() {
+        // Without seed, should produce different results (high probability)
+        let r1 = Polynomial::random_blinding(3, TEST_MODULUS, None);
+        let r2 = Polynomial::random_blinding(3, TEST_MODULUS, None);
+        
+        // Probability of collision: (1/q)^4 ≈ 2^-176 (negligible)
+        assert_ne!(r1, r2, "Random polynomials should differ (collision is negligible)");
+    }
+    
+    #[test]
+    fn test_polynomial_add_simple() {
+        let f = Polynomial::from_witness(&[1, 2, 3], TEST_MODULUS);
+        let g = Polynomial::from_witness(&[10, 20, 30], TEST_MODULUS);
+        
+        let sum = f.add(&g);
+        
+        // (f + g)(X) = 11 + 22X + 33X²
+        assert_eq!(sum.coeff(0).unwrap().value(), 11);
+        assert_eq!(sum.coeff(1).unwrap().value(), 22);
+        assert_eq!(sum.coeff(2).unwrap().value(), 33);
+        assert_eq!(sum.degree(), 2);
+    }
+    
+    #[test]
+    fn test_polynomial_add_different_degrees() {
+        let f = Polynomial::from_witness(&[1, 2], TEST_MODULUS);      // deg = 1
+        let g = Polynomial::from_witness(&[10, 20, 30, 40], TEST_MODULUS); // deg = 3
+        
+        let sum = f.add(&g);
+        
+        // (f + g)(X) = 11 + 22X + 30X² + 40X³
+        assert_eq!(sum.coeff(0).unwrap().value(), 11);
+        assert_eq!(sum.coeff(1).unwrap().value(), 22);
+        assert_eq!(sum.coeff(2).unwrap().value(), 30);
+        assert_eq!(sum.coeff(3).unwrap().value(), 40);
+        assert_eq!(sum.degree(), 3);
+    }
+    
+    #[test]
+    fn test_polynomial_add_modular() {
+        let f = Polynomial::from_witness(&[TEST_MODULUS - 1], TEST_MODULUS);
+        let g = Polynomial::from_witness(&[5], TEST_MODULUS);
+        
+        let sum = f.add(&g);
+        
+        // (q-1) + 5 ≡ 4 (mod q)
+        assert_eq!(sum.coeff(0).unwrap().value(), 4);
+    }
+    
+    #[test]
+    fn test_polynomial_add_commutativity() {
+        let f = Polynomial::from_witness(&[1, 2, 3], TEST_MODULUS);
+        let g = Polynomial::from_witness(&[10, 20, 30], TEST_MODULUS);
+        
+        let sum1 = f.add(&g);
+        let sum2 = g.add(&f);
+        
+        assert_eq!(sum1, sum2);
+    }
+    
+    #[test]
+    fn test_polynomial_add_evaluation() {
+        let f = Polynomial::from_witness(&[1, 2, 3], TEST_MODULUS);
+        let g = Polynomial::from_witness(&[10, 20, 30], TEST_MODULUS);
+        let alpha = Field::new(5);
+        
+        let sum = f.add(&g);
+        
+        // (f + g)(α) = f(α) + g(α)
+        let expected = (f.evaluate(alpha).value() + g.evaluate(alpha).value()) % TEST_MODULUS;
+        assert_eq!(sum.evaluate(alpha).value(), expected);
+    }
+    
+    #[test]
+    #[should_panic(expected = "Cannot add polynomials with different moduli")]
+    fn test_polynomial_add_different_moduli() {
+        let f = Polynomial::from_witness(&[1, 2], 101);
+        let g = Polynomial::from_witness(&[3, 4], 103);
+        
+        let _ = f.add(&g); // Should panic
+    }
+    
+    #[test]
+    fn test_blinding_hides_witness() {
+        let witness = vec![1, 7, 13, 91];
+        let f = Polynomial::from_witness(&witness, TEST_MODULUS);
+        
+        let r = Polynomial::random_blinding(f.degree(), TEST_MODULUS, Some(999));
+        let blinded = f.add(&r);
+        
+        // Blinded polynomial should differ from original
+        assert_ne!(blinded, f);
+        
+        // But evaluation relationship holds: blinded(α) = f(α) + r(α)
+        let alpha = Field::new(123);
+        let expected = (f.evaluate(alpha).value() + r.evaluate(alpha).value()) % TEST_MODULUS;
+        assert_eq!(blinded.evaluate(alpha).value(), expected);
+    }
 }
+
