@@ -46,6 +46,11 @@ impl Commitment {
             slice::from_raw_parts(raw.data, raw.len)
         }
     }
+    
+    /// Get raw FFI pointer (for internal use).
+    pub(crate) fn as_ffi_ptr(&self) -> *const ffi::LweCommitment {
+        self.inner as *const ffi::LweCommitment
+    }
 }
 
 impl Drop for Commitment {

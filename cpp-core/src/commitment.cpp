@@ -175,12 +175,19 @@ int lwe_verify_opening(
 ) noexcept {
     if (!ctx || !commitment || !message || !opening) return -1;
     
-    // Recompute commitment
+    // Extract seed from opening randomness
+    // Format: randomness[0] = seed (u64)
+    uint64_t seed = 0;
+    if (opening->randomness && opening->rand_len > 0) {
+        seed = opening->randomness[0];
+    }
+    
+    // Recompute commitment with same randomness
     auto recomputed = lwe_commit(
         const_cast<LweContext*>(ctx),
         message,
         msg_len,
-        0  // Use opening->randomness in production
+        seed
     );
     
     if (!recomputed) return -1;
@@ -194,7 +201,8 @@ int lwe_verify_opening(
         commitment->len * sizeof(uint64_t)
     ) == 0) ? 1 : 0;
 #else
-    // Fallback: timing-safe comparison
+    // Fallback: timing-safe comparison (not truly constant-time without libsodium)
+    // TODO: Implement proper constant-time comparison
     result = (std::memcmp(
         commitment->data,
         recomputed->data,

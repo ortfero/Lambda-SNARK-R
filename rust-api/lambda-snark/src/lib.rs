@@ -69,7 +69,7 @@ pub use commitment::Commitment;
 pub use context::LweContext;
 pub use polynomial::Polynomial;
 pub use challenge::Challenge;
-pub use opening::{Opening, generate_opening, verify_opening};
+pub use opening::{Opening, generate_opening, verify_opening, verify_opening_with_context};
 
 use thiserror::Error as ThisError;
 
