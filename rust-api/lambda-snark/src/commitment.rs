@@ -5,8 +5,11 @@ use lambda_snark_core::Field;
 use lambda_snark_sys as ffi;
 use std::slice;
 use zeroize::{Zeroize, ZeroizeOnDrop};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::de::{self, Visitor, SeqAccess};
 
 /// LWE commitment (safe wrapper).
+#[derive(Debug)]
 pub struct Commitment {
     inner: *mut ffi::LweCommitment,
 }
@@ -55,6 +58,31 @@ impl Drop for Commitment {
 
 // Safety: Commitment owns its data
 unsafe impl Send for Commitment {}
+
+impl Serialize for Commitment {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Serialize commitment as vector of u64
+        let data = self.as_bytes();
+        data.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Commitment {
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // PLACEHOLDER: Cannot reconstruct Commitment without LweContext
+        // This requires storing context info or accepting context on deserialization
+        // For now, return error
+        Err(de::Error::custom(
+            "Commitment deserialization requires LweContext (not implemented)"
+        ))
+    }
+}
 
 #[cfg(test)]
 mod tests {
