@@ -66,6 +66,7 @@ mod challenge;
 mod opening;
 pub mod sparse_matrix;
 pub mod r1cs;
+pub mod circuit;
 
 pub use commitment::Commitment;
 pub use context::LweContext;
@@ -74,6 +75,7 @@ pub use challenge::Challenge;
 pub use opening::{Opening, generate_opening, verify_opening, verify_opening_with_context};
 pub use sparse_matrix::SparseMatrix;
 pub use r1cs::R1CS;
+pub use circuit::CircuitBuilder;
 
 use thiserror::Error as ThisError;
 
