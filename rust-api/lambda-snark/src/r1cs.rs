@@ -344,18 +344,407 @@ impl R1CS {
             ));
         }
         
-        // 2. Compute constraint evaluations
+        // 2. Compute constraint evaluations at domain points
         let (a_evals, b_evals, c_evals) = self.compute_constraint_evals(witness);
         
-        // 3. For now, return dummy quotient (will implement full interpolation in next commit)
-        // TODO M4.4: Implement Lagrange interpolation
-        // TODO M4.4: Multiply A_z(X) · B_z(X)
-        // TODO M4.4: Subtract C_z(X)
-        // TODO M4.4: Divide by Z_H(X) = X^m - 1
+        // 3. Interpolate polynomials from evaluations
+        //    Domain H = {0, 1, 2, ..., m-1}
+        let a_poly = lagrange_interpolate(&a_evals, self.modulus);
+        let b_poly = lagrange_interpolate(&b_evals, self.modulus);
+        let c_poly = lagrange_interpolate(&c_evals, self.modulus);
         
-        // Placeholder: degree m-1 polynomial
-        Ok(vec![0; self.m])
+        // 4. Compute A_z(X) · B_z(X)
+        let ab_poly = poly_mul(&a_poly, &b_poly, self.modulus);
+        
+        // 5. Compute numerator: A_z(X) · B_z(X) - C_z(X)
+        let numerator = poly_sub(&ab_poly, &c_poly, self.modulus);
+        
+        // 6. Divide by vanishing polynomial Z_H(X) = X^m - 1
+        //    This should be exact (no remainder) since witness satisfies constraints
+        let quotient = poly_div_vanishing(&numerator, self.m, self.modulus)?;
+        
+        Ok(quotient)
     }
+}
+
+// ============================================================================
+// Polynomial Helper Functions
+// ============================================================================
+
+/// Modular exponentiation: base^exp mod modulus
+///
+/// Uses binary exponentiation for O(log exp) performance.
+fn mod_pow(base: u64, exp: u64, modulus: u64) -> u64 {
+    if modulus == 1 {
+        return 0;
+    }
+    
+    let mut result = 1u64;
+    let mut base = base % modulus;
+    let mut exp = exp;
+    
+    while exp > 0 {
+        if exp & 1 == 1 {
+            result = ((result as u128 * base as u128) % modulus as u128) as u64;
+        }
+        base = ((base as u128 * base as u128) % modulus as u128) as u64;
+        exp >>= 1;
+    }
+    
+    result
+}
+
+/// Modular multiplicative inverse using Extended Euclidean Algorithm
+///
+/// Returns x such that (a * x) ≡ 1 (mod m)
+/// Panics if a and m are not coprime.
+fn mod_inverse(a: u64, m: u64) -> u64 {
+    if a == 0 {
+        panic!("Cannot compute inverse of 0");
+    }
+    
+    let (mut t, mut new_t) = (0i128, 1i128);
+    let (mut r, mut new_r) = (m as i128, a as i128);
+    
+    while new_r != 0 {
+        let quotient = r / new_r;
+        (t, new_t) = (new_t, t - quotient * new_t);
+        (r, new_r) = (new_r, r - quotient * new_r);
+    }
+    
+    if r > 1 {
+        panic!("a={} is not invertible mod m={}", a, m);
+    }
+    
+    if t < 0 {
+        t += m as i128;
+    }
+    
+    t as u64
+}
+
+/// Lagrange basis polynomial L_i(X) evaluated at domain points
+///
+/// For domain H = {0, 1, 2, ..., m-1}, computes:
+///   L_i(X) = Π_{j≠i} (X - j) / (i - j)
+///
+/// Returns coefficients of L_i(X) as a polynomial.
+///
+/// **Note**: Naïve O(m²) implementation. For production, use NTT (M5.2).
+///
+/// # Arguments
+///
+/// * `i` - Index of Lagrange basis polynomial (0 ≤ i < m)
+/// * `m` - Domain size |H| = m
+/// * `modulus` - Field modulus q
+///
+/// # Returns
+///
+/// Coefficients of L_i(X), length m
+fn lagrange_basis(i: usize, m: usize, modulus: u64) -> Vec<u64> {
+    assert!(i < m, "Lagrange index i={} must be < m={}", i, m);
+    
+    // Start with constant polynomial 1
+    let mut poly = vec![1u64];
+    
+    // Multiply by (X - j) for all j ≠ i
+    for j in 0..m {
+        if j == i {
+            continue;
+        }
+        
+        // poly *= (X - j)
+        poly = poly_mul_linear(&poly, j as u64, modulus);
+    }
+    
+    // Compute denominator: Π_{j≠i} (i - j)
+    let mut denom = 1u64;
+    for j in 0..m {
+        if j == i {
+            continue;
+        }
+        
+        let diff = if i >= j {
+            ((i - j) as u64) % modulus
+        } else {
+            // i < j, so (i - j) is negative
+            // In modular arithmetic: -x ≡ q - x (mod q)
+            let abs_diff = ((j - i) as u64) % modulus;
+            if abs_diff == 0 {
+                0
+            } else {
+                modulus - abs_diff
+            }
+        };
+        
+        denom = ((denom as u128 * diff as u128) % modulus as u128) as u64;
+    }
+    
+    // Divide all coefficients by denominator
+    let denom_inv = mod_inverse(denom, modulus);
+    for coeff in poly.iter_mut() {
+        *coeff = ((*coeff as u128 * denom_inv as u128) % modulus as u128) as u64;
+    }
+    
+    // Pad to degree m-1
+    poly.resize(m, 0);
+    
+    poly
+}
+
+/// Multiply polynomial by linear factor (X - a)
+///
+/// Given poly p(X) of degree d, computes p(X) * (X - a)
+///
+/// Result has degree d+1
+fn poly_mul_linear(poly: &[u64], a: u64, modulus: u64) -> Vec<u64> {
+    if poly.is_empty() {
+        return vec![0];
+    }
+    
+    let n = poly.len();
+    let mut result = vec![0u64; n + 1];
+    
+    // (p₀ + p₁X + ... + pₙXⁿ) * (X - a)
+    // = -a·p₀ + (p₀ - a·p₁)X + (p₁ - a·p₂)X² + ... + pₙX^{n+1}
+    
+    for i in 0..n {
+        // Coefficient of X^i: poly[i-1] - a * poly[i]
+        // But for i=0: just -a * poly[0]
+        
+        // Add poly[i] to result[i+1] (shift left by X)
+        result[i + 1] = (result[i + 1] + poly[i]) % modulus;
+        
+        // Subtract a * poly[i] from result[i]
+        let term = ((a as u128 * poly[i] as u128) % modulus as u128) as u64;
+        if result[i] >= term {
+            result[i] = result[i] - term;
+        } else {
+            result[i] = modulus - (term - result[i]);
+        }
+    }
+    
+    result
+}
+
+/// Lagrange interpolation from evaluations
+///
+/// Given evaluations [f(0), f(1), ..., f(m-1)], computes polynomial f(X)
+/// of degree < m such that f(i) = evals[i] for all i.
+///
+/// Uses formula: f(X) = Σᵢ f(i) · L_i(X)
+///
+/// **Note**: Naïve O(m²) implementation. For production, use NTT (M5.2).
+///
+/// # Arguments
+///
+/// * `evals` - Evaluations at domain points [f(0), ..., f(m-1)]
+/// * `modulus` - Field modulus q
+///
+/// # Returns
+///
+/// Coefficients of interpolated polynomial f(X), length m
+fn lagrange_interpolate(evals: &[u64], modulus: u64) -> Vec<u64> {
+    let m = evals.len();
+    if m == 0 {
+        return vec![];
+    }
+    
+    let mut result = vec![0u64; m];
+    
+    for i in 0..m {
+        // Compute L_i(X)
+        let basis = lagrange_basis(i, m, modulus);
+        
+        // Add evals[i] * L_i(X) to result
+        for j in 0..m {
+            let term = ((evals[i] as u128 * basis[j] as u128) % modulus as u128) as u64;
+            result[j] = (result[j] + term) % modulus;
+        }
+    }
+    
+    result
+}
+
+/// Polynomial multiplication (naïve O(m²) convolution)
+///
+/// Computes c(X) = a(X) * b(X) where:
+/// - a(X) has degree deg_a
+/// - b(X) has degree deg_b
+/// - c(X) has degree deg_a + deg_b
+///
+/// # Arguments
+///
+/// * `a` - Coefficients of polynomial a(X)
+/// * `b` - Coefficients of polynomial b(X)
+/// * `modulus` - Field modulus q
+///
+/// # Returns
+///
+/// Coefficients of product polynomial c(X)
+fn poly_mul(a: &[u64], b: &[u64], modulus: u64) -> Vec<u64> {
+    if a.is_empty() || b.is_empty() {
+        return vec![0];
+    }
+    
+    let deg_a = a.len() - 1;
+    let deg_b = b.len() - 1;
+    let mut result = vec![0u64; deg_a + deg_b + 1];
+    
+    for i in 0..a.len() {
+        for j in 0..b.len() {
+            let term = ((a[i] as u128 * b[j] as u128) % modulus as u128) as u64;
+            result[i + j] = (result[i + j] + term) % modulus;
+        }
+    }
+    
+    result
+}
+
+/// Polynomial subtraction: a(X) - b(X)
+///
+/// # Arguments
+///
+/// * `a` - Coefficients of polynomial a(X)
+/// * `b` - Coefficients of polynomial b(X)
+/// * `modulus` - Field modulus q
+///
+/// # Returns
+///
+/// Coefficients of difference polynomial a(X) - b(X)
+fn poly_sub(a: &[u64], b: &[u64], modulus: u64) -> Vec<u64> {
+    let max_len = a.len().max(b.len());
+    let mut result = vec![0u64; max_len];
+    
+    for i in 0..max_len {
+        let a_val = if i < a.len() { a[i] } else { 0 };
+        let b_val = if i < b.len() { b[i] } else { 0 };
+        
+        if a_val >= b_val {
+            result[i] = a_val - b_val;
+        } else {
+            result[i] = modulus - (b_val - a_val);
+        }
+    }
+    
+    // Remove leading zeros
+    while result.len() > 1 && result[result.len() - 1] == 0 {
+        result.pop();
+    }
+    
+    result
+}
+
+/// Compute vanishing polynomial Z_H(X) = ∏_{i=0}^{m-1} (X - i)
+///
+/// For domain H = {0, 1, 2, ..., m-1}, returns coefficients of
+/// Z_H(X) = X(X-1)(X-2)...(X-(m-1))
+///
+/// # Arguments
+///
+/// * `m` - Domain size |H| = m
+/// * `modulus` - Field modulus q
+///
+/// # Returns
+///
+/// Coefficients of Z_H(X), length m+1 (degree m)
+fn vanishing_poly(m: usize, modulus: u64) -> Vec<u64> {
+    // Start with Z_H(X) = 1
+    let mut poly = vec![1u64];
+    
+    // Multiply by (X - i) for i = 0, 1, ..., m-1
+    for i in 0..m {
+        poly = poly_mul_linear(&poly, i as u64, modulus);
+    }
+    
+    poly
+}
+
+/// Polynomial division by vanishing polynomial Z_H(X) = ∏(X - i)
+///
+/// Computes quotient q(X) such that numerator(X) = q(X) * Z_H(X)
+///
+/// Returns Err if division is not exact (remainder ≠ 0), which indicates
+/// the witness doesn't satisfy R1CS constraints.
+///
+/// # Arguments
+///
+/// * `numerator` - Coefficients of dividend polynomial
+/// * `m` - Domain size (Z_H has roots at 0, 1, ..., m-1)
+/// * `modulus` - Field modulus q
+///
+/// # Returns
+///
+/// Ok(q_coeffs) if division is exact, Err otherwise
+fn poly_div_vanishing(numerator: &[u64], m: usize, modulus: u64) -> Result<Vec<u64>, crate::Error> {
+    if numerator.is_empty() {
+        return Ok(vec![0]);
+    }
+    
+    // Compute Z_H(X) = X(X-1)...(X-(m-1))
+    let divisor = vanishing_poly(m, modulus);
+    
+    // Perform polynomial long division
+    let mut remainder = numerator.to_vec();
+    let deg_num = remainder.len().saturating_sub(1);
+    let deg_div = divisor.len().saturating_sub(1); // Should be m
+    
+    if deg_num < deg_div {
+        // numerator has degree < deg(divisor), so quotient is 0
+        // Check if numerator is zero
+        if remainder.iter().all(|&x| x == 0) {
+            return Ok(vec![0]);
+        } else {
+            return Err(crate::Error::Ffi(
+                "Polynomial division by Z_H: remainder non-zero (witness invalid)".to_string()
+            ));
+        }
+    }
+    
+    let deg_quot = deg_num - deg_div;
+    let mut quotient = vec![0u64; deg_quot + 1];
+    
+    // Long division: divide high-degree terms first
+    for i in (0..=deg_quot).rev() {
+        let idx = i + deg_div;
+        if idx < remainder.len() && idx > 0 {
+            // Leading coefficient of divisor
+            let lead_div = divisor[deg_div];
+            let lead_div_inv = mod_inverse(lead_div, modulus);
+            
+            // Quotient coefficient
+            let q_coeff = ((remainder[idx] as u128 * lead_div_inv as u128) % modulus as u128) as u64;
+            quotient[i] = q_coeff;
+            
+            // Subtract q_coeff * divisor from remainder
+            for j in 0..divisor.len() {
+                let term = ((q_coeff as u128 * divisor[j] as u128) % modulus as u128) as u64;
+                let pos = i + j;
+                if pos < remainder.len() {
+                    if remainder[pos] >= term {
+                        remainder[pos] -= term;
+                    } else {
+                        remainder[pos] = modulus - (term - remainder[pos]);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Check remainder: should be zero
+    let has_nonzero = remainder.iter().any(|&x| x != 0);
+    if has_nonzero {
+        return Err(crate::Error::Ffi(
+            "Polynomial division by Z_H: remainder non-zero (witness invalid)".to_string()
+        ));
+    }
+    
+    // Remove leading zeros from quotient
+    while quotient.len() > 1 && quotient[quotient.len() - 1] == 0 {
+        quotient.pop();
+    }
+    
+    Ok(quotient)
 }
 
 #[cfg(test)]
@@ -627,5 +1016,455 @@ mod tests {
         
         let err = result.unwrap_err();
         assert!(err.to_string().contains("does not satisfy"));
+    }
+    
+    #[test]
+    fn test_compute_quotient_poly_correctness() {
+        // Test mathematical correctness: Q(α) * Z_H(α) = A_z(α) * B_z(α) - C_z(α)
+        let r1cs = create_multiplication_gate();
+        let witness = vec![1, 7, 13, 91];
+        let modulus = r1cs.modulus;
+        
+        let q_coeffs = r1cs.compute_quotient_poly(&witness).unwrap();
+        
+        // Compute A_z, B_z, C_z polynomials
+        let (a_evals, b_evals, c_evals) = r1cs.compute_constraint_evals(&witness);
+        let a_poly = super::lagrange_interpolate(&a_evals, modulus);
+        let b_poly = super::lagrange_interpolate(&b_evals, modulus);
+        let c_poly = super::lagrange_interpolate(&c_evals, modulus);
+        
+        // Test at random point α = 42
+        let alpha = 42u64;
+        
+        // Evaluate Q(α)
+        let mut q_alpha = 0u64;
+        for (i, &coeff) in q_coeffs.iter().enumerate() {
+            let power = super::mod_pow(alpha, i as u64, modulus);
+            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
+            q_alpha = ((q_alpha as u128 + term as u128) % modulus as u128) as u64;
+        }
+        
+        // Evaluate A_z(α), B_z(α), C_z(α)
+        let mut a_alpha = 0u64;
+        let mut b_alpha = 0u64;
+        let mut c_alpha = 0u64;
+        
+        for (i, &coeff) in a_poly.iter().enumerate() {
+            let power = super::mod_pow(alpha, i as u64, modulus);
+            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
+            a_alpha = ((a_alpha as u128 + term as u128) % modulus as u128) as u64;
+        }
+        
+        for (i, &coeff) in b_poly.iter().enumerate() {
+            let power = super::mod_pow(alpha, i as u64, modulus);
+            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
+            b_alpha = ((b_alpha as u128 + term as u128) % modulus as u128) as u64;
+        }
+        
+        for (i, &coeff) in c_poly.iter().enumerate() {
+            let power = super::mod_pow(alpha, i as u64, modulus);
+            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
+            c_alpha = ((c_alpha as u128 + term as u128) % modulus as u128) as u64;
+        }
+        
+        // Evaluate Z_H(α) = α(α-1)(α-2)...(α-(m-1))
+        let m = r1cs.num_constraints();
+        let z_h_poly = super::vanishing_poly(m, modulus);
+        let mut z_h_alpha = 0u64;
+        for (i, &coeff) in z_h_poly.iter().enumerate() {
+            let power = super::mod_pow(alpha, i as u64, modulus);
+            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
+            z_h_alpha = ((z_h_alpha as u128 + term as u128) % modulus as u128) as u64;
+        }
+        
+        // Check: Q(α) * Z_H(α) = A_z(α) * B_z(α) - C_z(α)
+        let lhs = ((q_alpha as u128 * z_h_alpha as u128) % modulus as u128) as u64;
+        
+        let ab_product = ((a_alpha as u128 * b_alpha as u128) % modulus as u128) as u64;
+        let rhs = if ab_product >= c_alpha {
+            ab_product - c_alpha
+        } else {
+            modulus - (c_alpha - ab_product)
+        };
+        
+        assert_eq!(lhs, rhs, "Q(α) * Z_H(α) must equal A_z(α) * B_z(α) - C_z(α)");
+    }
+    
+    #[test]
+    fn test_compute_quotient_poly_two_constraints() {
+        // Test with two multiplication constraints
+        let r1cs = create_two_multiplications();
+        let witness = vec![1, 2, 3, 6, 4, 24];
+        
+        let q_coeffs = r1cs.compute_quotient_poly(&witness).unwrap();
+        
+        // Q(X) should have degree < m = 2
+        assert!(q_coeffs.len() <= 2);
+        
+        // Verify at point α = 17
+        let alpha = 17u64;
+        let modulus = r1cs.modulus;
+        
+        let (a_evals, b_evals, c_evals) = r1cs.compute_constraint_evals(&witness);
+        let a_poly = super::lagrange_interpolate(&a_evals, modulus);
+        let b_poly = super::lagrange_interpolate(&b_evals, modulus);
+        let c_poly = super::lagrange_interpolate(&c_evals, modulus);
+        
+        // Evaluate polynomials at α
+        let eval_poly = |poly: &[u64]| -> u64 {
+            let mut result = 0u64;
+            for (i, &coeff) in poly.iter().enumerate() {
+                let power = super::mod_pow(alpha, i as u64, modulus);
+                let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
+                result = ((result as u128 + term as u128) % modulus as u128) as u64;
+            }
+            result
+        };
+        
+        let q_alpha = eval_poly(&q_coeffs);
+        let a_alpha = eval_poly(&a_poly);
+        let b_alpha = eval_poly(&b_poly);
+        let c_alpha = eval_poly(&c_poly);
+        
+        // Z_H(α) = α(α-1) for domain {0, 1}
+        let m = r1cs.num_constraints();
+        let z_h_poly = super::vanishing_poly(m, modulus);
+        let z_h_alpha = eval_poly(&z_h_poly);
+        
+        // Verify Q(α) * Z_H(α) = A_z(α) * B_z(α) - C_z(α)
+        let lhs = ((q_alpha as u128 * z_h_alpha as u128) % modulus as u128) as u64;
+        let ab = ((a_alpha as u128 * b_alpha as u128) % modulus as u128) as u64;
+        let rhs = if ab >= c_alpha {
+            ab - c_alpha
+        } else {
+            modulus - (c_alpha - ab)
+        };
+        
+        assert_eq!(lhs, rhs);
+    }
+    
+    // ========================================================================
+    // Polynomial Helper Tests
+    // ========================================================================
+    
+    #[test]
+    fn test_mod_pow() {
+        let modulus = 17592186044417;
+        
+        // 2^10 mod q
+        assert_eq!(super::mod_pow(2, 10, modulus), 1024);
+        
+        // 5^0 = 1
+        assert_eq!(super::mod_pow(5, 0, modulus), 1);
+        
+        // 7^1 = 7
+        assert_eq!(super::mod_pow(7, 1, modulus), 7);
+        
+        // Large exponent
+        let result = super::mod_pow(123, 456, modulus);
+        assert!(result < modulus);
+    }
+    
+    #[test]
+    fn test_mod_inverse() {
+        let modulus = 17592186044417;
+        
+        // 2 * inv(2) ≡ 1 (mod q)
+        let inv2 = super::mod_inverse(2, modulus);
+        assert_eq!((2u128 * inv2 as u128) % modulus as u128, 1);
+        
+        // 7 * inv(7) ≡ 1 (mod q)
+        let inv7 = super::mod_inverse(7, modulus);
+        assert_eq!((7u128 * inv7 as u128) % modulus as u128, 1);
+        
+        // 13 * inv(13) ≡ 1 (mod q)
+        let inv13 = super::mod_inverse(13, modulus);
+        assert_eq!((13u128 * inv13 as u128) % modulus as u128, 1);
+    }
+    
+    #[test]
+    fn test_poly_mul_linear() {
+        let modulus = 17592186044417;
+        
+        // (2) * (X - 3) = -6 + 2X = (q-6) + 2X
+        let poly = vec![2];
+        let result = super::poly_mul_linear(&poly, 3, modulus);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], modulus - 6); // -6 ≡ q-6
+        assert_eq!(result[1], 2);
+        
+        // (1 + X) * (X - 0) = X + X² = 0 + 1·X + 1·X²
+        let poly = vec![1, 1];
+        let result = super::poly_mul_linear(&poly, 0, modulus);
+        assert_eq!(result, vec![0, 1, 1]);
+    }
+    
+    #[test]
+    fn test_lagrange_basis_simple() {
+        let modulus = 17592186044417;
+        let m = 2; // Domain H = {0, 1}
+        
+        // L_0(X) for domain {0, 1}
+        // L_0(X) = (X - 1) / (0 - 1) = -(X - 1) = 1 - X
+        let l0 = super::lagrange_basis(0, m, modulus);
+        assert_eq!(l0.len(), m);
+        assert_eq!(l0[0], 1); // Constant term
+        assert_eq!(l0[1], modulus - 1); // Coefficient of X (which is -1)
+        
+        // L_1(X) for domain {0, 1}
+        // L_1(X) = (X - 0) / (1 - 0) = X
+        let l1 = super::lagrange_basis(1, m, modulus);
+        assert_eq!(l1.len(), m);
+        assert_eq!(l1[0], 0); // No constant term
+        assert_eq!(l1[1], 1); // Coefficient of X is 1
+    }
+    
+    #[test]
+    fn test_lagrange_basis_properties() {
+        let modulus = 17592186044417;
+        let m = 3; // Domain H = {0, 1, 2}
+        
+        // Kronecker delta: L_i(j) = δ_{ij}
+        for i in 0..m {
+            let li = super::lagrange_basis(i, m, modulus);
+            
+            for j in 0..m {
+                // Evaluate L_i at point j
+                let mut val = 0u64;
+                for (k, &coeff) in li.iter().enumerate() {
+                    let power = super::mod_pow(j as u64, k as u64, modulus);
+                    let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
+                    val = ((val as u128 + term as u128) % modulus as u128) as u64;
+                }
+                
+                if i == j {
+                    assert_eq!(val, 1, "L_{}({}) should be 1", i, j);
+                } else {
+                    assert_eq!(val, 0, "L_{}({}) should be 0", i, j);
+                }
+            }
+        }
+    }
+    
+    #[test]
+    fn test_lagrange_interpolate_simple() {
+        let modulus = 17592186044417;
+        
+        // Interpolate constant function f(X) = 5
+        let evals = vec![5, 5, 5];
+        let poly = super::lagrange_interpolate(&evals, modulus);
+        
+        // Should get constant polynomial [5, 0, 0]
+        assert_eq!(poly[0], 5);
+        assert_eq!(poly[1], 0);
+        assert_eq!(poly[2], 0);
+    }
+    
+    #[test]
+    fn test_lagrange_interpolate_linear() {
+        let modulus = 17592186044417;
+        
+        // Interpolate f(X) = X from evaluations [0, 1, 2]
+        let evals = vec![0, 1, 2];
+        let poly = super::lagrange_interpolate(&evals, modulus);
+        
+        // Should get f(X) = X, i.e., [0, 1, 0]
+        assert_eq!(poly.len(), 3);
+        assert_eq!(poly[0], 0); // Constant term
+        assert_eq!(poly[1], 1); // X coefficient
+        assert_eq!(poly[2], 0); // X² coefficient
+    }
+    
+    #[test]
+    fn test_poly_mul() {
+        let modulus = 17592186044417;
+        
+        // (2 + 3X) * (1 + X) = 2 + 2X + 3X + 3X² = 2 + 5X + 3X²
+        let a = vec![2, 3];
+        let b = vec![1, 1];
+        let c = super::poly_mul(&a, &b, modulus);
+        
+        assert_eq!(c.len(), 3);
+        assert_eq!(c[0], 2);
+        assert_eq!(c[1], 5);
+        assert_eq!(c[2], 3);
+    }
+    
+    #[test]
+    fn test_poly_sub() {
+        let modulus = 17592186044417;
+        
+        // (5 + 7X) - (2 + 3X) = 3 + 4X
+        let a = vec![5, 7];
+        let b = vec![2, 3];
+        let c = super::poly_sub(&a, &b, modulus);
+        
+        assert_eq!(c.len(), 2);
+        assert_eq!(c[0], 3);
+        assert_eq!(c[1], 4);
+        
+        // Test underflow: (1) - (5) = -4 ≡ q-4 (mod q)
+        let a = vec![1];
+        let b = vec![5];
+        let c = super::poly_sub(&a, &b, modulus);
+        assert_eq!(c[0], modulus - 4);
+    }
+    
+    #[test]
+    fn test_poly_div_vanishing_exact() {
+        let modulus = 17592186044417;
+        let m = 2; // Domain H = {0, 1}
+        
+        // Z_H(X) = X(X-1) = X² - X
+        // Test: (X² - X) / (X² - X) should give quotient = 1
+        
+        let z_h = super::vanishing_poly(m, modulus);
+        // Z_H(X) = X² - X, so z_h = [0, modulus-1, 1] (constant=-0, X=-1, X²=1)
+        // Actually: X(X-1) = X² - X so coeffs are [0, -1, 1] in standard form
+        
+        let q = super::poly_div_vanishing(&z_h, m, modulus).unwrap();
+        
+        // Quotient should be constant 1
+        assert_eq!(q, vec![1]);
+    }
+    
+    #[test]
+    fn test_vanishing_poly() {
+        let modulus = 17592186044417;
+        
+        // For m=1, Z_H(X) = X - 0 = X
+        let z1 = super::vanishing_poly(1, modulus);
+        assert_eq!(z1, vec![0, 1]); // 0 + 1·X
+        
+        // For m=2, Z_H(X) = X(X-1) = X² - X
+        let z2 = super::vanishing_poly(2, modulus);
+        assert_eq!(z2.len(), 3);
+        assert_eq!(z2[0], 0);           // constant term
+        assert_eq!(z2[1], modulus - 1); // X coefficient (-1)
+        assert_eq!(z2[2], 1);           // X² coefficient
+        
+        // For m=3, Z_H(X) = X(X-1)(X-2) = X³ - 3X² + 2X
+        let z3 = super::vanishing_poly(3, modulus);
+        assert_eq!(z3.len(), 4);
+        assert_eq!(z3[0], 0);           // constant
+        assert_eq!(z3[1], 2);           // X coefficient (2)
+        assert_eq!(z3[2], modulus - 3); // X² coefficient (-3)
+        assert_eq!(z3[3], 1);           // X³ coefficient
+    }
+    
+    #[test]
+    fn test_poly_div_vanishing_non_exact() {
+        let modulus = 17592186044417;
+        let m = 2;
+        
+        // Numerator: X² (not divisible by X² - 1)
+        let numerator = vec![0, 0, 1];
+        
+        let result = super::poly_div_vanishing(&numerator, m, modulus);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("remainder non-zero"));
+    }
+    
+    // ========================================================================
+    // Integration Tests for compute_quotient_poly
+    // ========================================================================
+    
+    #[test]
+    fn test_compute_quotient_poly_multiplication_gate() {
+        let r1cs = create_multiplication_gate();
+        let witness = vec![1, 7, 13, 91]; // 7 * 13 = 91
+        
+        let q = r1cs.compute_quotient_poly(&witness).unwrap();
+        
+        // Quotient should have degree < m (since division is exact)
+        assert!(q.len() <= r1cs.num_constraints());
+        
+        // Verify: Q(X) * Z_H(X) = A_z(X) * B_z(X) - C_z(X)
+        // For single constraint (m=1), Z_H(X) = X - 0 = X
+        // We'll just check Q exists and has reasonable coefficients
+        assert!(!q.is_empty());
+        
+        // All coefficients should be < modulus
+        for &coeff in &q {
+            assert!(coeff < r1cs.modulus);
+        }
+    }
+    
+    #[test]
+    fn test_compute_quotient_poly_two_multiplications() {
+        let r1cs = create_two_multiplications();
+        let witness = vec![1, 2, 3, 6, 4, 24]; // 2*3=6, 6*4=24
+        
+        let q = r1cs.compute_quotient_poly(&witness).unwrap();
+        
+        // Quotient should have degree < m
+        assert!(q.len() <= r1cs.num_constraints());
+        assert!(!q.is_empty());
+        
+        // All coefficients should be < modulus
+        for &coeff in &q {
+            assert!(coeff < r1cs.modulus);
+        }
+    }
+    
+    #[test]
+    fn test_compute_quotient_poly_evaluates_correctly() {
+        let r1cs = create_multiplication_gate();
+        let witness = vec![1, 7, 13, 91];
+        
+        let q = r1cs.compute_quotient_poly(&witness).unwrap();
+        let (a_evals, b_evals, c_evals) = r1cs.compute_constraint_evals(&witness);
+        
+        // Interpolate polynomials
+        let a_poly = super::lagrange_interpolate(&a_evals, r1cs.modulus);
+        let b_poly = super::lagrange_interpolate(&b_evals, r1cs.modulus);
+        let c_poly = super::lagrange_interpolate(&c_evals, r1cs.modulus);
+        
+        // Compute A_z(X) * B_z(X)
+        let ab_poly = super::poly_mul(&a_poly, &b_poly, r1cs.modulus);
+        
+        // Verify at random point α
+        // Q(α) * Z_H(α) should equal A_z(α) * B_z(α) - C_z(α)
+        let alpha = 12345u64;
+        
+        let q_alpha = eval_poly(&q, alpha, r1cs.modulus);
+        let a_alpha = eval_poly(&a_poly, alpha, r1cs.modulus);
+        let b_alpha = eval_poly(&b_poly, alpha, r1cs.modulus);
+        let c_alpha = eval_poly(&c_poly, alpha, r1cs.modulus);
+        
+        // Z_H(α) = α^m - 1 (for m=1, this is α - 1 = α^1 - 1)
+        let zh_alpha = if alpha >= 1 {
+            ((super::mod_pow(alpha, r1cs.m as u64, r1cs.modulus) as u128
+                + r1cs.modulus as u128 - 1) % r1cs.modulus as u128) as u64
+        } else {
+            r1cs.modulus - 1
+        };
+        
+        // Q(α) * Z_H(α)
+        let lhs = ((q_alpha as u128 * zh_alpha as u128) % r1cs.modulus as u128) as u64;
+        
+        // A_z(α) * B_z(α) - C_z(α)
+        let ab_alpha = ((a_alpha as u128 * b_alpha as u128) % r1cs.modulus as u128) as u64;
+        let rhs = if ab_alpha >= c_alpha {
+            ab_alpha - c_alpha
+        } else {
+            r1cs.modulus - (c_alpha - ab_alpha)
+        };
+        
+        assert_eq!(lhs, rhs, "Q(α) * Z_H(α) should equal A_z(α) * B_z(α) - C_z(α)");
+    }
+    
+    /// Helper: Evaluate polynomial at point x
+    fn eval_poly(poly: &[u64], x: u64, modulus: u64) -> u64 {
+        let mut result = 0u64;
+        let mut power = 1u64;
+        
+        for &coeff in poly {
+            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
+            result = ((result as u128 + term as u128) % modulus as u128) as u64;
+            power = ((power as u128 * x as u128) % modulus as u128) as u64;
+        }
+        
+        result
     }
 }
