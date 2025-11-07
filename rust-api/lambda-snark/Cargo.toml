@@ -11,6 +11,10 @@ readme = "README.md"
 [lib]
 name = "lambda_snark"
 
+[features]
+default = ["fft-ntt"]
+fft-ntt = []
+
 [dependencies]
 lambda-snark-core = { path = "../lambda-snark-core" }
 lambda-snark-sys = { path = "../lambda-snark-sys" }

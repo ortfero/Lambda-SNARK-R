@@ -33,6 +33,11 @@
 use crate::sparse_matrix::SparseMatrix;
 use crate::Error;
 
+#[cfg(feature = "fft-ntt")]
+use crate::ntt::{ntt_inverse, compute_root_of_unity};
+#[cfg(feature = "fft-ntt")]
+use lambda_snark_core::{NTT_MODULUS, NTT_PRIMITIVE_ROOT};
+
 /// R1CS (Rank-1 Constraint System) instance.
 #[derive(Debug, Clone)]
 pub struct R1CS {
@@ -579,7 +584,7 @@ fn poly_mul_linear(poly: &[u64], a: u64, modulus: u64) -> Vec<u64> {
         // But for i=0: just -a * poly[0]
         
         // Add poly[i] to result[i+1] (shift left by X)
-        result[i + 1] = (result[i + 1] + poly[i]) % modulus;
+        result[i + 1] = ((result[i + 1] as u128 + poly[i] as u128) % modulus as u128) as u64;
         
         // Subtract a * poly[i] from result[i]
         let term = ((a as u128 * poly[i] as u128) % modulus as u128) as u64;
@@ -611,6 +616,68 @@ fn poly_mul_linear(poly: &[u64], a: u64, modulus: u64) -> Vec<u64> {
 ///
 /// Coefficients of interpolated polynomial f(X), length m
 pub(crate) fn lagrange_interpolate(evals: &[u64], modulus: u64) -> Vec<u64> {
+    #[cfg(feature = "fft-ntt")]
+    {
+        lagrange_interpolate_ntt(evals, modulus)
+    }
+    
+    #[cfg(not(feature = "fft-ntt"))]
+    {
+        lagrange_interpolate_baseline(evals, modulus)
+    }
+}
+
+/// NTT-based polynomial interpolation (O(m log m)).
+///
+/// Uses inverse NTT to compute coefficients from evaluations.
+/// Requires m to be power of 2 and modulus to be NTT_MODULUS.
+///
+/// # Arguments
+///
+/// * `evals` - Evaluations at roots of unity {1, ω, ω², ..., ω^(m-1)}
+/// * `modulus` - Field modulus (must be NTT_MODULUS for NTT)
+///
+/// # Returns
+///
+/// Coefficients of interpolated polynomial f(X)
+#[cfg(feature = "fft-ntt")]
+fn lagrange_interpolate_ntt(evals: &[u64], modulus: u64) -> Vec<u64> {
+    let m = evals.len();
+    
+    // Check if m is power of 2
+    if !m.is_power_of_two() {
+        // Fallback to baseline for non-power-of-2
+        return lagrange_interpolate_baseline(evals, modulus);
+    }
+    
+    // Check if modulus is NTT-friendly
+    if modulus != NTT_MODULUS {
+        // Fallback to baseline for incompatible modulus
+        return lagrange_interpolate_baseline(evals, modulus);
+    }
+    
+    // Compute primitive m-th root of unity
+    let omega = compute_root_of_unity(m, NTT_MODULUS, NTT_PRIMITIVE_ROOT);
+    
+    // Inverse NTT: evaluations → coefficients
+    ntt_inverse(evals, NTT_MODULUS, omega)
+        .expect("NTT inverse failed (should not happen for valid inputs)")
+}
+
+/// Baseline Lagrange interpolation (O(m²)).
+///
+/// Naïve algorithm using Lagrange basis polynomials.
+/// Used as fallback when NTT is disabled or m is not power of 2.
+///
+/// # Arguments
+///
+/// * `evals` - Evaluations at domain points {0, 1, ..., m-1}
+/// * `modulus` - Field modulus q
+///
+/// # Returns
+///
+/// Coefficients of interpolated polynomial f(X)
+fn lagrange_interpolate_baseline(evals: &[u64], modulus: u64) -> Vec<u64> {
     let m = evals.len();
     if m == 0 {
         return vec![];
@@ -625,7 +692,7 @@ pub(crate) fn lagrange_interpolate(evals: &[u64], modulus: u64) -> Vec<u64> {
         // Add evals[i] * L_i(X) to result
         for j in 0..m {
             let term = ((evals[i] as u128 * basis[j] as u128) % modulus as u128) as u64;
-            result[j] = (result[j] + term) % modulus;
+            result[j] = ((result[j] as u128 + term as u128) % modulus as u128) as u64;
         }
     }
     
@@ -660,7 +727,7 @@ fn poly_mul(a: &[u64], b: &[u64], modulus: u64) -> Vec<u64> {
     for i in 0..a.len() {
         for j in 0..b.len() {
             let term = ((a[i] as u128 * b[j] as u128) % modulus as u128) as u64;
-            result[i + j] = (result[i + j] + term) % modulus;
+            result[i + j] = ((result[i + j] as u128 + term as u128) % modulus as u128) as u64;
         }
     }
     
