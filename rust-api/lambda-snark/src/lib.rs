@@ -64,12 +64,16 @@ mod context;
 mod polynomial;
 mod challenge;
 mod opening;
+pub mod sparse_matrix;
+pub mod r1cs;
 
 pub use commitment::Commitment;
 pub use context::LweContext;
 pub use polynomial::Polynomial;
 pub use challenge::Challenge;
 pub use opening::{Opening, generate_opening, verify_opening, verify_opening_with_context};
+pub use sparse_matrix::SparseMatrix;
+pub use r1cs::R1CS;
 
 use thiserror::Error as ThisError;
 
