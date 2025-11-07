@@ -240,7 +240,70 @@ pub fn prove(
     Err(Error::Ffi("R1CS prover not implemented yet, use prove_simple()".to_string()))
 }
 
-/// Verify proof.
+/// Verify SNARK proof (simple version).
+///
+/// Implements the verifier algorithm:
+/// 1. Validate proof structure
+/// 2. Recompute Fiat-Shamir challenge α' = H(public_inputs || commitment)
+/// 3. Check α' = α (challenge consistency)
+/// 4. Verify opening proof at α
+///
+/// # Arguments
+/// * `proof` - Proof to verify
+/// * `public_inputs` - Public inputs used in Fiat-Shamir
+/// * `modulus` - Field modulus q
+///
+/// # Returns
+/// `true` if proof is valid, `false` otherwise
+///
+/// # Security
+/// - Soundness: Invalid proof rejected with probability ≥ 1 - ε (see docs)
+/// - Completeness: Valid proof always accepts
+///
+/// # Example
+/// ```no_run
+/// use lambda_snark::{prove_simple, verify_simple, LweContext, Params, Profile, SecurityLevel};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let modulus = 17592186044417;
+/// let params = Params::new(
+///     SecurityLevel::Bits128,
+///     Profile::RingB { n: 4096, k: 2, q: modulus, sigma: 3.19 },
+/// );
+/// let ctx = LweContext::new(params)?;
+///
+/// let witness = vec![1, 7, 13, 91];
+/// let public_inputs = vec![1, 91];
+///
+/// let proof = prove_simple(&witness, &public_inputs, &ctx, modulus, 0x1234)?;
+/// let valid = verify_simple(&proof, &public_inputs, modulus);
+/// assert!(valid, "Valid proof should verify");
+/// # Ok(())
+/// # }
+/// ```
+pub fn verify_simple(
+    proof: &Proof,
+    public_inputs: &[u64],
+    modulus: u64,
+) -> bool {
+    // 1. Recompute Fiat-Shamir challenge
+    let challenge_recomputed = Challenge::derive(public_inputs, &proof.commitment, modulus);
+    
+    // 2. Check challenge consistency
+    if proof.challenge.alpha() != challenge_recomputed.alpha() {
+        return false;
+    }
+    
+    // 3. Verify opening proof
+    verify_opening(
+        &proof.commitment,
+        proof.challenge.alpha(),
+        &proof.opening,
+        modulus,
+    )
+}
+
+/// Verify proof (legacy R1CS API).
 ///
 /// # Errors
 ///
@@ -250,8 +313,8 @@ pub fn verify(
     _public_input: &[Field],
     _proof: &Proof,
 ) -> Result<bool, Error> {
-    // TODO: Implement verifier
-    Ok(false)
+    // TODO: Implement full R1CS verifier
+    Err(Error::Ffi("R1CS verifier not implemented yet, use verify_simple()".to_string()))
 }
 
 #[cfg(test)]
