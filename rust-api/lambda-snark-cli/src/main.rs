@@ -74,6 +74,17 @@ enum Commands {
         #[arg(short, long)]
         verbose: bool,
     },
+    
+    /// Run Range Proof example (prove value ∈ [0, 256) without revealing value)
+    RangeProofExample {
+        /// Random seed for proof generation
+        #[arg(short, long, default_value_t = 42)]
+        seed: u64,
+        
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -148,6 +159,10 @@ fn main() -> anyhow::Result<()> {
         
         Commands::R1csExample { seed, verbose } => {
             run_r1cs_example(seed, verbose)?;
+        }
+        
+        Commands::RangeProofExample { seed, verbose } => {
+            run_range_proof_example(seed, verbose)?;
         }
     }
     
@@ -294,6 +309,209 @@ fn run_r1cs_example(seed: u64, verbose: bool) -> anyhow::Result<()> {
              r1cs.num_constraints(), r1cs.witness_size());
     println!("  - Public inputs: {} (constant=1, x={})", 
              public_inputs.len(), public_inputs[1]);
+    println!("  - Proof size:    ~{} bytes", proof_size);
+    println!("  - Soundness:     ε ≤ 2^-48 (two Fiat-Shamir challenges)");
+    println!("  - Security:      128-bit quantum (Module-LWE)");
+    
+    Ok(())
+}
+
+/// Run Range Proof example: prove value=42 ∈ [0, 256) without revealing value
+fn run_range_proof_example(seed: u64, verbose: bool) -> anyhow::Result<()> {
+    println!("╔═══════════════════════════════════════════════════════════╗");
+    println!("║     ΛSNARK-R: Range Proof Example (8-bit range)          ║");
+    println!("╚═══════════════════════════════════════════════════════════╝");
+    println!();
+    
+    // Secret value and bit width
+    let secret_value = 42u64;  // Binary: 0010_1010
+    let k = 8;  // Prove value ∈ [0, 2^8) = [0, 256)
+    
+    println!("🎯 Goal: Prove that a secret value is in range [0, 256)");
+    println!("   WITHOUT revealing the actual value!");
+    println!();
+    println!("   Secret value: {} (binary: {:08b})", secret_value, secret_value);
+    println!("   Range: [0, 2^{}) = [0, 256)", k);
+    println!();
+    
+    // Step 1: Build Range Proof circuit
+    println!("📋 Step 1: Building Range Proof circuit");
+    println!("   Technique: Bit decomposition + boolean constraints");
+    println!();
+    
+    let modulus = 17592186044417u64;
+    let mut builder = CircuitBuilder::new(modulus);
+    
+    // Allocate constant
+    let one = builder.alloc_var();  // z_0 = 1
+    
+    // Allocate bit variables b_0, b_1, ..., b_7
+    let mut bit_vars = Vec::new();
+    for i in 0..k {
+        let bit_var = builder.alloc_var();
+        bit_vars.push(bit_var);
+        
+        if verbose {
+            println!("   Allocated z_{} = b_{} (bit {})", bit_var, i, i);
+        }
+    }
+    
+    // Allocate value variable (will be reconstructed from bits)
+    let value_var = builder.alloc_var();
+    
+    if verbose {
+        println!("   Allocated z_{} = value (reconstructed)", value_var);
+        println!();
+    }
+    
+    // Public inputs: just constant 1 (range [0, 2^k) is public knowledge)
+    builder.set_public_inputs(1);
+    
+    // Add boolean constraints: b_i · (b_i - 1) = 0 for each bit
+    // This forces b_i ∈ {0, 1}
+    println!("   Adding {} boolean constraints (b_i · (b_i - 1) = 0)...", k);
+    
+    for (i, &bit_var) in bit_vars.iter().enumerate() {
+        // Constraint: b_i · (b_i - 1) = 0
+        // Rewrite as: b_i · b_i = b_i
+        // A = [b_i], B = [b_i], C = [b_i]
+        builder.add_constraint(
+            vec![(bit_var, 1)],
+            vec![(bit_var, 1)],
+            vec![(bit_var, 1)],
+        );
+        
+        if verbose {
+            println!("     Constraint {}: b_{} · b_{} = b_{}", i+1, i, i, i);
+        }
+    }
+    
+    // Add recomposition constraint: value = Σ 2^i · b_i
+    // We need to express this as a single R1CS constraint
+    // Trick: Use a linear combination in C
+    println!();
+    println!("   Adding value recomposition constraint...");
+    
+    // Build coefficient vector for C = [2^0·b_0 + 2^1·b_1 + ... + 2^7·b_7]
+    let mut c_terms = Vec::new();
+    for (i, &bit_var) in bit_vars.iter().enumerate() {
+        let coeff = 1u64 << i;  // 2^i
+        c_terms.push((bit_var, coeff));
+    }
+    
+    // Constraint: 1 · value = Σ 2^i · b_i
+    // A = [1], B = [value], C = [coefficients]
+    builder.add_constraint(
+        vec![(one, 1)],       // A: constant 1
+        vec![(value_var, 1)], // B: value
+        c_terms,              // C: Σ 2^i · b_i
+    );
+    
+    if verbose {
+        println!("     1 · value = 2^0·b_0 + 2^1·b_1 + ... + 2^7·b_7");
+    }
+    
+    let r1cs = builder.build();
+    let num_constraints = r1cs.num_constraints();
+    
+    println!("   ✓ Circuit built: {} constraints ({} boolean + 1 recomposition)", 
+             num_constraints, k);
+    println!();
+    
+    // Step 2: Prepare witness
+    println!("🔐 Step 2: Preparing witness (bit decomposition)");
+    
+    // Decompose secret_value into bits
+    let mut bits = Vec::new();
+    for i in 0..k {
+        let bit = (secret_value >> i) & 1;
+        bits.push(bit);
+    }
+    
+    // Build full witness: [1, b_0, b_1, ..., b_7, value]
+    let mut full_witness = vec![1u64];
+    full_witness.extend(&bits);
+    full_witness.push(secret_value);
+    
+    if verbose {
+        println!("   Bit decomposition: {:?}", bits);
+        println!("   Full witness: {:?}", full_witness);
+    } else {
+        println!("   Bits: {:?} (LSB first)", bits);
+        println!("   Reconstructed value: {}", secret_value);
+    }
+    
+    // Verify constraint satisfaction
+    if !r1cs.is_satisfied(&full_witness) {
+        anyhow::bail!("Witness does not satisfy R1CS constraints!");
+    }
+    println!("   ✓ Witness satisfies all {} constraints", num_constraints);
+    println!();
+    
+    // Public inputs (only constant 1)
+    let public_inputs = r1cs.public_inputs(&full_witness);
+    
+    // Step 3: Setup LWE
+    println!("⚙️  Step 3: Initializing LWE commitment scheme");
+    
+    let lwe_params = Params::new(
+        SecurityLevel::Bits128,
+        Profile::RingB {
+            n: 4096,
+            k: 2,
+            q: modulus,
+            sigma: 3.19,
+        },
+    );
+    let ctx = LweContext::new(lwe_params)?;
+    
+    println!("   LWE parameters: n=4096, q=2^44+1, σ=3.19");
+    println!("   Security: 128-bit post-quantum (Module-LWE)");
+    println!();
+    
+    // Step 4: Generate proof
+    println!("🔨 Step 4: Generating Range Proof (seed={})", seed);
+    println!("   ⚠️  Note: Actual value (42) is NOT revealed in proof!");
+    
+    let proof = prove_r1cs(&r1cs, &full_witness, &ctx, seed)?;
+    
+    println!("   ✓ Proof generated successfully");
+    if verbose {
+        println!("     Challenge α: {}", proof.challenge_alpha.alpha().value());
+        println!("     Challenge β: {}", proof.challenge_beta.alpha().value());
+        println!("     Number of polynomial evaluations: {}", k + 1);
+    }
+    
+    let proof_size = std::mem::size_of_val(&proof);
+    println!("   Proof size: ~{} bytes", proof_size);
+    println!();
+    
+    // Step 5: Verify proof
+    println!("✅ Step 5: Verifying Range Proof");
+    println!("   Verifier knows: range is [0, 256)");
+    println!("   Verifier does NOT know: actual value");
+    
+    let is_valid = verify_r1cs(&proof, public_inputs, &r1cs);
+    
+    if is_valid {
+        println!("   ✓ Proof VALID ✓");
+        println!();
+        println!("╔═══════════════════════════════════════════════════════════╗");
+        println!("║   SUCCESS: Proved value ∈ [0, 256) without revealing!    ║");
+        println!("╚═══════════════════════════════════════════════════════════╝");
+    } else {
+        println!("   ✗ Proof INVALID ✗");
+        anyhow::bail!("Verification failed!");
+    }
+    
+    println!();
+    println!("Summary:");
+    println!("  - Range:         [0, 2^{}) = [0, 256)", k);
+    println!("  - Circuit:       {} constraints ({} boolean + 1 recomp)", 
+             num_constraints, k);
+    println!("  - Variables:     {} (1 constant + {} bits + 1 value)", 
+             r1cs.witness_size(), k);
+    println!("  - Privacy:       ✓ Value hidden (only bits in private witness)");
     println!("  - Proof size:    ~{} bytes", proof_size);
     println!("  - Soundness:     ε ≤ 2^-48 (two Fiat-Shamir challenges)");
     println!("  - Security:      128-bit quantum (Module-LWE)");
