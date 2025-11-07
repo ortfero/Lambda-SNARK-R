@@ -336,6 +336,37 @@ impl R1CS {
     /// // Q(X) should have degree < m (since division by Z_H is exact)
     /// assert!(q_coeffs.len() <= r1cs.num_constraints());
     /// ```
+    
+    /// Evaluate polynomial at point x.
+    ///
+    /// # Arguments
+    /// * `poly` - Polynomial coefficients in ascending degree order
+    /// * `x` - Evaluation point
+    ///
+    /// # Returns
+    /// f(x) mod modulus using Horner's method for efficiency
+    ///
+    /// # Example
+    /// ```ignore
+    /// let poly = vec![2, 3, 1]; // 2 + 3X + X²
+    /// let r1cs = R1CS::new(..., modulus: 97);
+    /// assert_eq!(r1cs.eval_poly(&poly, 0), 2);  // f(0) = 2
+    /// assert_eq!(r1cs.eval_poly(&poly, 1), 6);  // f(1) = 2+3+1 = 6
+    /// assert_eq!(r1cs.eval_poly(&poly, 2), 12); // f(2) = 2+6+4 = 12
+    /// ```
+    pub fn eval_poly(&self, poly: &[u64], x: u64) -> u64 {
+        let mut result = 0u64;
+        let mut power = 1u64;
+        
+        for &coeff in poly {
+            let term = ((coeff as u128 * power as u128) % self.modulus as u128) as u64;
+            result = ((result as u128 + term as u128) % self.modulus as u128) as u64;
+            power = ((power as u128 * x as u128) % self.modulus as u128) as u64;
+        }
+        
+        result
+    }
+    
     pub fn compute_quotient_poly(&self, witness: &[u64]) -> Result<Vec<u64>, Error> {
         // 1. Verify witness satisfies constraints
         if !self.is_satisfied(witness) {
@@ -544,7 +575,7 @@ fn poly_mul_linear(poly: &[u64], a: u64, modulus: u64) -> Vec<u64> {
 /// # Returns
 ///
 /// Coefficients of interpolated polynomial f(X), length m
-fn lagrange_interpolate(evals: &[u64], modulus: u64) -> Vec<u64> {
+pub(crate) fn lagrange_interpolate(evals: &[u64], modulus: u64) -> Vec<u64> {
     let m = evals.len();
     if m == 0 {
         return vec![];

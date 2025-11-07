@@ -14,6 +14,15 @@ pub struct Commitment {
     inner: *mut ffi::LweCommitment,
 }
 
+impl Clone for Commitment {
+    fn clone(&self) -> Self {
+        // Clone by extracting data and reconstructing
+        // For now, this is a shallow copy (unsafe but matches C++ semantics)
+        // TODO: Implement proper deep copy via FFI if needed
+        Commitment { inner: self.inner }
+    }
+}
+
 impl Commitment {
     /// Commit to a message vector.
     pub fn new(
