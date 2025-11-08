@@ -861,8 +861,10 @@ pub fn prove_r1cs_zk(
     // 2. Sample random blinding factor r ← F_q
     let blinding_factor = rng.next_u64() % r1cs.modulus;
     
-    // 3. Compute vanishing polynomial Z_H(X) = X(X-1)...(X-(m-1))
-    let z_h = vanishing_poly(r1cs.m, r1cs.modulus);
+    // 3. Compute vanishing polynomial Z_H(X) with domain-aware method
+    //    NTT: Z_H(X) = X^m - 1  |  Baseline: Z_H(X) = X(X-1)...(X-(m-1))
+    let use_ntt = r1cs.should_use_ntt();
+    let z_h = vanishing_poly(r1cs.m, r1cs.modulus, use_ntt);
     
     // 4. Compute r·Z_H(X)
     let r_z_h = poly_mul_scalar(&z_h, blinding_factor, r1cs.modulus);
@@ -1018,29 +1020,12 @@ pub fn verify_r1cs(
     
     let beta = proof.challenge_beta.alpha().value();
     
-    // 5. Compute Z_H(α) for domain H = {0, 1, ..., m-1}
-    // Z_H(X) = ∏_{i=0}^{m-1} (X - i)
-    let m = r1cs.num_constraints();
-    let mut zh_alpha = 1u64;
-    for i in 0..m {
-        let diff = if alpha >= (i as u64) {
-            alpha - (i as u64)
-        } else {
-            modulus - ((i as u64) - alpha)
-        };
-        zh_alpha = ((zh_alpha as u128 * diff as u128) % modulus as u128) as u64;
-    }
+    // 5. Compute Z_H(α) using domain-aware method
+    // Domain depends on interpolation method (NTT vs baseline)
+    let zh_alpha = r1cs.eval_vanishing(alpha);
     
     // 6. Compute Z_H(β)
-    let mut zh_beta = 1u64;
-    for i in 0..m {
-        let diff = if beta >= (i as u64) {
-            beta - (i as u64)
-        } else {
-            modulus - ((i as u64) - beta)
-        };
-        zh_beta = ((zh_beta as u128 * diff as u128) % modulus as u128) as u64;
-    }
+    let zh_beta = r1cs.eval_vanishing(beta);
     
     // 7. Verify first equation: Q(α)·Z_H(α) = A_z(α)·B_z(α) - C_z(α)
     let lhs_alpha = ((proof.q_alpha as u128 * zh_alpha as u128) % modulus as u128) as u64;
@@ -1180,28 +1165,11 @@ pub fn verify_r1cs_zk(
     
     let beta = proof.challenge_beta.alpha().value();
     
-    // 5. Compute Z_H(α) for domain H = {0, 1, ..., m-1}
-    let m = r1cs.num_constraints();
-    let mut zh_alpha = 1u64;
-    for i in 0..m {
-        let diff = if alpha >= (i as u64) {
-            alpha - (i as u64)
-        } else {
-            modulus - ((i as u64) - alpha)
-        };
-        zh_alpha = ((zh_alpha as u128 * diff as u128) % modulus as u128) as u64;
-    }
+    // 5. Compute Z_H(α) using domain-aware method
+    let zh_alpha = r1cs.eval_vanishing(alpha);
     
     // 6. Compute Z_H(β)
-    let mut zh_beta = 1u64;
-    for i in 0..m {
-        let diff = if beta >= (i as u64) {
-            beta - (i as u64)
-        } else {
-            modulus - ((i as u64) - beta)
-        };
-        zh_beta = ((zh_beta as u128 * diff as u128) % modulus as u128) as u64;
-    }
+    let zh_beta = r1cs.eval_vanishing(beta);
     
     // 7. Unblind Q'(α) → Q(α) using r·Z_H(α)
     let r_zh_alpha = ((proof.blinding_factor as u128 * zh_alpha as u128) % modulus as u128) as u64;

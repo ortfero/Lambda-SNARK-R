@@ -375,6 +375,80 @@ impl R1CS {
         result
     }
     
+    /// Check if NTT interpolation should be used (vs baseline Lagrange).
+    ///
+    /// NTT requires:
+    /// 1. m is power of 2
+    /// 2. modulus is NTT_MODULUS
+    /// 3. feature "fft-ntt" is enabled
+    ///
+    /// # Returns
+    ///
+    /// `true` if NTT path will be taken, `false` for baseline
+    #[cfg(feature = "fft-ntt")]
+    pub fn should_use_ntt(&self) -> bool {
+        use lambda_snark_core::NTT_MODULUS;
+        self.m.is_power_of_two() && self.modulus == NTT_MODULUS
+    }
+    
+    #[cfg(not(feature = "fft-ntt"))]
+    pub fn should_use_ntt(&self) -> bool {
+        false
+    }
+    
+    /// Evaluate vanishing polynomial Z_H(x) at point x.
+    ///
+    /// Domain H depends on interpolation method:
+    /// - **NTT path**: H = {1, ω, ω², ..., ω^{m-1}} (roots of unity)
+    ///   → Z_H(X) = X^m - 1
+    /// - **Baseline path**: H = {0, 1, 2, ..., m-1} (integers)
+    ///   → Z_H(X) = X(X-1)(X-2)...(X-(m-1))
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - Point at which to evaluate Z_H
+    ///
+    /// # Returns
+    ///
+    /// Z_H(x) mod modulus
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use lambda_snark::{R1CS, SparseMatrix};
+    /// # let r1cs = R1CS::new(4, 10, 1, 
+    /// #     SparseMatrix::from_dense(&vec![vec![0u64; 10]; 4]),
+    /// #     SparseMatrix::from_dense(&vec![vec![0u64; 10]; 4]),
+    /// #     SparseMatrix::from_dense(&vec![vec![0u64; 10]; 4]),
+    /// #     18446744069414584321);
+    /// // For NTT: Z_H(ω) = ω^4 - 1 = 0 (ω is 4th root of unity)
+    /// // For baseline: Z_H(2) = 2·1·0·(-1) = 0
+    /// ```
+    pub fn eval_vanishing(&self, x: u64) -> u64 {
+        if self.should_use_ntt() {
+            // NTT path: Z_H(X) = X^m - 1
+            // Compute x^m mod modulus
+            let x_pow_m = mod_pow(x, self.m as u64, self.modulus);
+            if x_pow_m >= 1 {
+                x_pow_m - 1
+            } else {
+                self.modulus - (1 - x_pow_m)
+            }
+        } else {
+            // Baseline path: Z_H(X) = ∏(X - i) for i=0..m-1
+            let mut result = 1u64;
+            for i in 0..self.m {
+                let diff = if x >= (i as u64) {
+                    x - (i as u64)
+                } else {
+                    self.modulus - ((i as u64) - x)
+                };
+                result = ((result as u128 * diff as u128) % self.modulus as u128) as u64;
+            }
+            result
+        }
+    }
+    
     /// Compute quotient polynomial Q(X) = (A_z(X) · B_z(X) - C_z(X)) / Z_H(X).
     ///
     /// This is the core operation in R1CS proving. The quotient polynomial exists
@@ -430,9 +504,10 @@ impl R1CS {
         // 5. Compute numerator: A_z(X) · B_z(X) - C_z(X)
         let numerator = poly_sub(&ab_poly, &c_poly, self.modulus);
         
-        // 6. Divide by vanishing polynomial Z_H(X) = X^m - 1
-        //    This should be exact (no remainder) since witness satisfies constraints
-        let quotient = poly_div_vanishing(&numerator, self.m, self.modulus)?;
+        // 6. Divide by vanishing polynomial Z_H(X)
+        //    Use domain-aware Z_H: X^m - 1 (NTT) or ∏(X-i) (baseline)
+        let use_ntt = self.should_use_ntt();
+        let quotient = poly_div_vanishing(&numerator, self.m, self.modulus, use_ntt)?;
         
         Ok(quotient)
     }
@@ -815,32 +890,43 @@ pub fn poly_mul_scalar(poly: &[u64], scalar: u64, modulus: u64) -> Vec<u64> {
         .collect()
 }
 
-/// Compute vanishing polynomial Z_H(X) = ∏_{i=0}^{m-1} (X - i)
+/// Compute vanishing polynomial Z_H(X) coefficients.
 ///
-/// For domain H = {0, 1, 2, ..., m-1}, returns coefficients of
-/// Z_H(X) = X(X-1)(X-2)...(X-(m-1))
+/// Domain H depends on `use_ntt`:
+/// - **use_ntt = true**: H = roots of unity {1, ω, ..., ω^{m-1}}
+///   → Z_H(X) = X^m - 1
+/// - **use_ntt = false**: H = integers {0, 1, ..., m-1}  
+///   → Z_H(X) = X(X-1)(X-2)...(X-(m-1))
 ///
 /// # Arguments
 ///
 /// * `m` - Domain size |H| = m
 /// * `modulus` - Field modulus q
+/// * `use_ntt` - If true, use roots-of-unity domain (X^m - 1)
 ///
 /// # Returns
 ///
-/// Coefficients of Z_H(X), length m+1 (degree m)
-pub fn vanishing_poly(m: usize, modulus: u64) -> Vec<u64> {
-    // Start with Z_H(X) = 1
-    let mut poly = vec![1u64];
-    
-    // Multiply by (X - i) for i = 0, 1, ..., m-1
-    for i in 0..m {
-        poly = poly_mul_linear(&poly, i as u64, modulus);
+/// Coefficients of Z_H(X)
+pub fn vanishing_poly(m: usize, modulus: u64, use_ntt: bool) -> Vec<u64> {
+    if use_ntt {
+        // NTT path: Z_H(X) = X^m - 1
+        // Coefficients: [-1, 0, 0, ..., 0, 1]
+        //                ^0  1  2      m-1 ^m
+        let mut poly = vec![0u64; m + 1];
+        poly[0] = modulus - 1; // -1 mod modulus
+        poly[m] = 1;           // X^m coefficient
+        poly
+    } else {
+        // Baseline path: Z_H(X) = ∏(X - i) for i=0..m-1
+        let mut poly = vec![1u64];
+        for i in 0..m {
+            poly = poly_mul_linear(&poly, i as u64, modulus);
+        }
+        poly
     }
-    
-    poly
 }
 
-/// Polynomial division by vanishing polynomial Z_H(X) = ∏(X - i)
+/// Polynomial division by vanishing polynomial Z_H(X)
 ///
 /// Computes quotient q(X) such that numerator(X) = q(X) * Z_H(X)
 ///
@@ -850,19 +936,20 @@ pub fn vanishing_poly(m: usize, modulus: u64) -> Vec<u64> {
 /// # Arguments
 ///
 /// * `numerator` - Coefficients of dividend polynomial
-/// * `m` - Domain size (Z_H has roots at 0, 1, ..., m-1)
+/// * `m` - Domain size (Z_H has roots at 0, 1, ..., m-1 or roots of unity)
 /// * `modulus` - Field modulus q
+/// * `use_ntt` - If true, Z_H(X) = X^m - 1; else Z_H(X) = ∏(X-i)
 ///
 /// # Returns
 ///
 /// Ok(q_coeffs) if division is exact, Err otherwise
-fn poly_div_vanishing(numerator: &[u64], m: usize, modulus: u64) -> Result<Vec<u64>, crate::Error> {
+fn poly_div_vanishing(numerator: &[u64], m: usize, modulus: u64, use_ntt: bool) -> Result<Vec<u64>, crate::Error> {
     if numerator.is_empty() {
         return Ok(vec![0]);
     }
     
-    // Compute Z_H(X) = X(X-1)...(X-(m-1))
-    let divisor = vanishing_poly(m, modulus);
+    // Compute Z_H(X) with correct domain
+    let divisor = vanishing_poly(m, modulus, use_ntt);
     
     // Perform polynomial long division
     let mut remainder = numerator.to_vec();
@@ -930,7 +1017,6 @@ fn poly_div_vanishing(numerator: &[u64], m: usize, modulus: u64) -> Result<Vec<u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     
     fn create_multiplication_gate() -> R1CS {
         // TV-R1CS-1: Simple multiplication gate a * b = c
@@ -1247,9 +1333,9 @@ mod tests {
             c_alpha = ((c_alpha as u128 + term as u128) % modulus as u128) as u64;
         }
         
-        // Evaluate Z_H(α) = α(α-1)(α-2)...(α-(m-1))
+        // Evaluate Z_H(α) = α(α-1)(α-2)...(α-(m-1)) [integer domain]
         let m = r1cs.num_constraints();
-        let z_h_poly = super::vanishing_poly(m, modulus);
+        let z_h_poly = super::vanishing_poly(m, modulus, false); // baseline domain
         let mut z_h_alpha = 0u64;
         for (i, &coeff) in z_h_poly.iter().enumerate() {
             let power = super::mod_pow(alpha, i as u64, modulus);
@@ -1306,9 +1392,9 @@ mod tests {
         let b_alpha = eval_poly(&b_poly);
         let c_alpha = eval_poly(&c_poly);
         
-        // Z_H(α) = α(α-1) for domain {0, 1}
+        // Z_H(α) = α(α-1) for domain {0, 1} [baseline]
         let m = r1cs.num_constraints();
-        let z_h_poly = super::vanishing_poly(m, modulus);
+        let z_h_poly = super::vanishing_poly(m, modulus, false); // baseline domain
         let z_h_alpha = eval_poly(&z_h_poly);
         
         // Verify Q(α) * Z_H(α) = A_z(α) * B_z(α) - C_z(α)
@@ -1495,14 +1581,14 @@ mod tests {
         let modulus = 17592186044417;
         let m = 2; // Domain H = {0, 1}
         
-        // Z_H(X) = X(X-1) = X² - X
+        // Z_H(X) = X(X-1) = X² - X [baseline domain]
         // Test: (X² - X) / (X² - X) should give quotient = 1
         
-        let z_h = super::vanishing_poly(m, modulus);
+        let z_h = super::vanishing_poly(m, modulus, false); // baseline
         // Z_H(X) = X² - X, so z_h = [0, modulus-1, 1] (constant=-0, X=-1, X²=1)
         // Actually: X(X-1) = X² - X so coeffs are [0, -1, 1] in standard form
         
-        let q = super::poly_div_vanishing(&z_h, m, modulus).unwrap();
+        let q = super::poly_div_vanishing(&z_h, m, modulus, false).unwrap();
         
         // Quotient should be constant 1
         assert_eq!(q, vec![1]);
@@ -1512,19 +1598,19 @@ mod tests {
     fn test_vanishing_poly() {
         let modulus = 17592186044417;
         
-        // For m=1, Z_H(X) = X - 0 = X
-        let z1 = super::vanishing_poly(1, modulus);
+        // For m=1, Z_H(X) = X - 0 = X [baseline domain]
+        let z1 = super::vanishing_poly(1, modulus, false);
         assert_eq!(z1, vec![0, 1]); // 0 + 1·X
         
-        // For m=2, Z_H(X) = X(X-1) = X² - X
-        let z2 = super::vanishing_poly(2, modulus);
+        // For m=2, Z_H(X) = X(X-1) = X² - X [baseline domain]
+        let z2 = super::vanishing_poly(2, modulus, false);
         assert_eq!(z2.len(), 3);
         assert_eq!(z2[0], 0);           // constant term
         assert_eq!(z2[1], modulus - 1); // X coefficient (-1)
         assert_eq!(z2[2], 1);           // X² coefficient
         
-        // For m=3, Z_H(X) = X(X-1)(X-2) = X³ - 3X² + 2X
-        let z3 = super::vanishing_poly(3, modulus);
+        // For m=3, Z_H(X) = X(X-1)(X-2) = X³ - 3X² + 2X [baseline domain]
+        let z3 = super::vanishing_poly(3, modulus, false);
         assert_eq!(z3.len(), 4);
         assert_eq!(z3[0], 0);           // constant
         assert_eq!(z3[1], 2);           // X coefficient (2)
@@ -1537,10 +1623,10 @@ mod tests {
         let modulus = 17592186044417;
         let m = 2;
         
-        // Numerator: X² (not divisible by X² - 1)
+        // Numerator: X² (not divisible by X² - X) [baseline domain]
         let numerator = vec![0, 0, 1];
         
-        let result = super::poly_div_vanishing(&numerator, m, modulus);
+        let result = super::poly_div_vanishing(&numerator, m, modulus, false);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("remainder non-zero"));
     }
