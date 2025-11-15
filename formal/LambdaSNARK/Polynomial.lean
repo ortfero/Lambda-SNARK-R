@@ -171,11 +171,23 @@ theorem quotient_uniqueness {F : Type} [Field F]
     (h₁ : f = q₁ * @vanishing_poly F _ m ω)
     (h₂ : f = q₂ * @vanishing_poly F _ m ω) :
     q₁ = q₂ := by
-  -- From h₁ = h₂: q₁ * Z_H = q₂ * Z_H, cancel Z_H (nonzero polynomial)
+  -- From h₁ = h₂: q₁ * Z_H = q₂ * Z_H
   have h_eq : q₁ * @vanishing_poly F _ m ω = q₂ * @vanishing_poly F _ m ω := by
     rw [← h₁, ← h₂]
-  -- Cancellation in polynomial ring (requires Z_H ≠ 0)
-  sorry  -- TODO: Apply mul_right_cancel with vanishing_poly ≠ 0
+  -- Need to show Z_H ≠ 0 and use mul_right_cancel
+  -- Polynomial F over Field F has no zero divisors
+  -- Z_H is product of (X - ωⁱ), each factor nonzero, so Z_H ≠ 0
+  by_cases h_m : m = 0
+  · -- m = 0: Z_H = 1 (empty product), so q₁ * 1 = q₂ * 1
+    simp [vanishing_poly, h_m] at h_eq
+    cases h_eq with
+    | inl h => exact h
+    | inr h => 
+      -- h: ∏ x : Fin 0, _ = 0, but empty product = 1
+      exfalso
+      sorry  -- TODO: Show Finset.prod over empty set equals 1, not 0
+  · -- m > 0: Z_H ≠ 0 (product of nonzero linear factors)
+    sorry  -- TODO: Show vanishing_poly m ω ≠ 0 and apply mul_right_cancel
 
 /-- Degree bound for quotient polynomial -/
 theorem quotient_degree_bound {F : Type} [Field F] [DecidableEq F] [Zero F]
