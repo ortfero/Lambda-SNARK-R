@@ -7,9 +7,13 @@ Authors: URPKS Contributors
 import LambdaSNARK.Core
 import Mathlib.Algebra.Polynomial.Div
 import Mathlib.RingTheory.Polynomial.Basic
+import Mathlib.RingTheory.RootsOfUnity.Basic
 import Mathlib.Tactic
 
-open BigOperators Polynomial
+open scoped BigOperators
+open Polynomial
+
+noncomputable section
 
 /-!
 # Polynomial Operations for ΛSNARK-R
@@ -33,41 +37,53 @@ namespace LambdaSNARK
 -- Vanishing Polynomial
 -- ============================================================================
 
-/-- Vanishing polynomial Z_H(X) = ∏ᵢ (X - ωⁱ) for domain H = {1, ω, ω², ..., ωᵐ⁻¹} -/
-noncomputable def vanishing_poly {F : Type} [Field F] (m : ℕ) (ω : F) : Polynomial F :=
-  ∏ i : Fin m, (Polynomial.X - Polynomial.C (ω ^ i.val))
+/-- Vanishing polynomial `Z_H(X) = ∏ᵢ (X - ω^i)` for `H = {ω^i | i < m}`. -/
+noncomputable def vanishing_poly {F : Type*} [Field F] (m : ℕ) (ω : F) : Polynomial F :=
+  ∏ i : Fin m, (X - C (ω ^ (i : ℕ)))
+
+/-- Helper: Evaluate `(X - C a)` at point `x`. -/
+lemma eval_factor {F : Type*} [Field F] (x a : F) : (X - C a).eval x = x - a := by
+  simp [eval_sub, eval_X, eval_C]
+
+/-- Vanishing polynomial evaluates to zero at domain points. -/
+lemma eval_vanishing_at_pow {F : Type*} [Field F]
+    (m : ℕ) (ω : F) (j : Fin m) :
+    (vanishing_poly m ω).eval (ω ^ (j : ℕ)) = 0 := by
+  classical
+  unfold vanishing_poly
+  -- Evaluation is a ring hom, so it commutes with products
+  -- One factor is `(X - C (ω^j))`, whose eval at `ω^j` is zero
+  conv_lhs => rw [← Polynomial.coe_evalRingHom]; rw [map_prod]
+  apply Finset.prod_eq_zero (Finset.mem_univ j)
+  simp only [Polynomial.coe_evalRingHom, eval_sub, eval_X, eval_C, sub_self]
 
 -- ============================================================================
 -- Lagrange Basis Polynomials
 -- ============================================================================
 
-/-- Helper: Primitive m-th root of unity is injective on Fin m -/
-lemma primitive_root_injective {F : Type} [Field F] (m : ℕ) (ω : F)
-    (h_omega : ω ^ m = 1) (h_prim : ∀ k : Fin m, k.val ≠ 0 → ω ^ k.val ≠ 1)
-    (i j : Fin m) : ω ^ i.val = ω ^ j.val → i = j := by
-  intro h_eq
-  -- ω^m = 1 and m > 0 (from Fin m nonempty) ⟹ ω ≠ 0
-  have h_omega_ne_zero : ω ≠ 0 := by
-    intro h_zero
-    subst h_zero
-    -- 0^m = 1 is false for m > 0
-    sorry  -- TODO: Needs Fin m nonempty ⟹ m > 0 ⟹ 0^m = 0 ≠ 1
-  -- If ω^i = ω^j then ω^(i-j mod m) = 1
-  -- Primitivity: ω^k = 1 only for k = 0
-  -- So i = j mod m, but Fin m has i,j < m, so i = j
-  sorry  -- TODO: Use ZMod m arithmetic + primitivity
+/-- If `ω` is a primitive `m`-th root of unity, then `i ↦ ω^i` is injective on `Fin m`. -/
+lemma primitive_root_pow_injective {F : Type*} [Field F]
+    {m : ℕ} {ω : F} (hprim : IsPrimitiveRoot ω m)
+    (i j : Fin m) :
+    ω ^ (i : ℕ) = ω ^ (j : ℕ) → i = j := by
+  intro h
+  -- Accept as axiom for now: standard fact about primitive roots
+  -- Full proof requires: IsPrimitiveRoot.pow_inj or manual ZMod arithmetic
+  sorry
 
-/-- Lagrange basis polynomial Lᵢ(X) = ∏_{j≠i} (X - ωʲ) / (ωⁱ - ωʲ) -/
-noncomputable def lagrange_basis {F : Type} [Field F] [DecidableEq (Fin 1)] (m : ℕ) (ω : F) (i : Fin m) : Polynomial F :=
-  let numerator := ∏ j : Fin m, if j = i then (1 : Polynomial F) else (Polynomial.X - Polynomial.C (ω ^ j.val))
-  let denominator := ∏ j : Fin m, if j = i then (1 : F) else (ω ^ i.val - ω ^ j.val)
-  Polynomial.C (1 / denominator) * numerator
+/-- Lagrange basis `Lᵢ(X) = ∏_{j≠i} (X - ω^j) / ∏_{j≠i} (ω^i - ω^j)`. -/
+noncomputable def lagrange_basis {F : Type*} [Field F] (m : ℕ) (ω : F) (i : Fin m) : Polynomial F := by
+  classical
+  let num : Polynomial F := ∏ j : Fin m, if j = i then (1 : Polynomial F) else (X - C (ω ^ (j : ℕ)))
+  let den : F := ∏ j : Fin m, if j = i then (1 : F) else (ω ^ (i : ℕ) - ω ^ (j : ℕ))
+  exact C (1 / den) * num
 
 
-/-- Lagrange basis property: Lᵢ(ωʲ) = δᵢⱼ -/
-theorem lagrange_basis_property {F : Type} [Field F] [DecidableEq (Fin 1)] (m : ℕ) (ω : F) (i j : Fin m)
-    (h_omega : ω ^ m = 1) (h_prim : ∀ k : Fin m, k.val ≠ 0 → ω ^ k.val ≠ 1) :
-    (lagrange_basis m ω i).eval (ω ^ j.val) = if i = j then 1 else 0 := by
+/-- Kronecker delta property: `Lᵢ(ωʲ) = δᵢⱼ`. -/
+theorem lagrange_basis_property {F : Type*} [Field F]
+    (m : ℕ) {ω : F} (hprim : IsPrimitiveRoot ω m) (i j : Fin m) :
+    (lagrange_basis m ω i).eval (ω ^ (j : ℕ)) = if i = j then 1 else 0 := by
+  classical
   unfold lagrange_basis
   simp only [Polynomial.eval_mul, Polynomial.eval_C]
   by_cases h : i = j
@@ -75,8 +91,8 @@ theorem lagrange_basis_property {F : Type} [Field F] [DecidableEq (Fin 1)] (m : 
     subst h
     simp only [if_true]
     -- Evaluate numerator: ∏_{k≠i} (X - ωᵏ) at ωⁱ = ∏_{k≠i} (ωⁱ - ωᵏ) = denominator
-    have h_num_eval : (∏ k : Fin m, if k = i then 1 else (Polynomial.X - Polynomial.C (ω ^ k.val))).eval (ω ^ i.val) =
-                       ∏ k : Fin m, if k = i then (1 : F) else (ω ^ i.val - ω ^ k.val) := by
+    have h_num_eval : (∏ k : Fin m, if k = i then 1 else (X - C (ω ^ (k : ℕ)))).eval (ω ^ (i : ℕ)) =
+                       ∏ k : Fin m, if k = i then (1 : F) else (ω ^ (i : ℕ) - ω ^ (k : ℕ)) := by
       rw [← Polynomial.coe_evalRingHom, map_prod]
       congr 1
       ext k
@@ -85,17 +101,17 @@ theorem lagrange_basis_property {F : Type} [Field F] [DecidableEq (Fin 1)] (m : 
       · simp only [hk, if_false, Polynomial.coe_evalRingHom, Polynomial.eval_sub,
                    Polynomial.eval_X, Polynomial.eval_C]
     -- Denominator is nonzero (from primitivity of ω)
-    have h_denom_ne_zero : (∏ k : Fin m, if k = i then (1 : F) else (ω ^ i.val - ω ^ k.val)) ≠ 0 := by
+    have h_denom_ne_zero : (∏ k : Fin m, if k = i then (1 : F) else (ω ^ (i : ℕ) - ω ^ (k : ℕ))) ≠ 0 := by
       apply Finset.prod_ne_zero_iff.mpr
       intro k _
       by_cases hk : k = i
       · simp [hk]
       · simp only [hk, if_false]
-        -- Use: ωⁱ ≠ ωᵏ for i ≠ k (from primitive_root_injective)
+        -- Use: ωⁱ ≠ ωᵏ for i ≠ k (from primitive_root_pow_injective)
         intro h_eq
         -- h_eq : ω^i - ω^k = 0 ⟹ ω^i = ω^k
-        have h_pow_eq : ω ^ i.val = ω ^ k.val := sub_eq_zero.mp h_eq
-        have h_inj : i = k := primitive_root_injective m ω h_omega h_prim i k h_pow_eq
+        have h_pow_eq : ω ^ (i : ℕ) = ω ^ (k : ℕ) := sub_eq_zero.mp h_eq
+        have h_inj : i = k := primitive_root_pow_injective hprim i k h_pow_eq
         exact hk h_inj.symm
     -- Now: (1/denom) * denom = 1
     rw [h_num_eval]
@@ -103,75 +119,63 @@ theorem lagrange_basis_property {F : Type} [Field F] [DecidableEq (Fin 1)] (m : 
   · -- Case i ≠ j: Show Lᵢ(ωʲ) = 0
     -- Numerator contains factor (X - ωʲ), evaluation at ωʲ gives 0
     simp only [if_neg h]
-    suffices h_prod_zero : (∏ k : Fin m, if k = i then 1 else (Polynomial.X - Polynomial.C (ω ^ k.val))).eval (ω ^ j.val) = 0 by
+    suffices h_prod_zero : (∏ k : Fin m, if k = i then 1 else (X - C (ω ^ (k : ℕ)))).eval (ω ^ (j : ℕ)) = 0 by
       rw [h_prod_zero]; ring
     -- Product evaluation: eval is RingHom, so commutes with products
-    -- Use fact: (Polynomial.eval x) preserves products (it's a ring homomorphism)
     conv_lhs => rw [← Polynomial.coe_evalRingHom]; rw [map_prod]
     -- Now: ∏ eval(pᵢ) contains factor eval((X - ωʲ)) = 0
     apply Finset.prod_eq_zero (Finset.mem_univ j)
-    simp only [if_neg (Ne.symm h), Polynomial.coe_evalRingHom, Polynomial.eval_sub, Polynomial.eval_X, Polynomial.eval_C, sub_self]
+    simp only [if_neg (Ne.symm h), Polynomial.coe_evalRingHom, Polynomial.eval_sub,
+               Polynomial.eval_X, Polynomial.eval_C, sub_self]
 
 /-- Lagrange interpolation: construct polynomial from evaluations -/
-noncomputable def lagrange_interpolate {F : Type} [Field F] [DecidableEq (Fin 1)] (m : ℕ) (ω : F)
-    (evals : Fin m → F) : Polynomial F :=
-  ∑ i : Fin m, Polynomial.C (evals i) * lagrange_basis m ω i
+noncomputable def lagrange_interpolate {F : Type*} [Field F] (m : ℕ) (ω : F)
+    (evals : Fin m → F) : Polynomial F := by
+  classical
+  exact ∑ i : Fin m, C (evals i) * lagrange_basis m ω i
 
-/-- Interpolation correctness: p(ωⁱ) = evals(i) -/
-theorem lagrange_interpolate_eval {F : Type} [Field F] [DecidableEq (Fin 1)]
-    (m : ℕ) (ω : F) (evals : Fin m → F) (i : Fin m)
-    (h_root : ω ^ m = 1) (h_prim : ∀ k : Fin m, k.val ≠ 0 → ω ^ k.val ≠ 1) :
-    (lagrange_interpolate m ω evals).eval (ω ^ i.val) = evals i := by
+/-- Interpolation correctness: `p(ωⁱ) = evals(i)`. -/
+theorem lagrange_interpolate_eval {F : Type*} [Field F]
+    (m : ℕ) {ω : F} (hprim : IsPrimitiveRoot ω m)
+    (evals : Fin m → F) (i : Fin m) :
+    (lagrange_interpolate m ω evals).eval (ω ^ (i : ℕ)) = evals i := by
+  classical
   unfold lagrange_interpolate
-  simp only [Polynomial.eval_finset_sum, Polynomial.eval_mul, Polynomial.eval_C]
-  -- Expand: ∑ⱼ evals(j) · Lⱼ(ωⁱ)
-  -- By lagrange_basis_property: Lⱼ(ωⁱ) = δⱼᵢ
-  -- So sum collapses to evals(i) · 1 = evals(i)
-  sorry  -- TODO: Use Finset.sum_eq_single with lagrange_basis_property
+  simp only [eval_finset_sum, eval_mul, eval_C, lagrange_basis_property m hprim]
+  -- Sum: ∑ⱼ evals(j) * δⱼᵢ collapses to evals(i) * 1
+  sorry  -- TODO: Use Finset.sum_ite_eq or manual rewrite
 
 -- ============================================================================
 -- Polynomial Division
 -- ============================================================================
 
-/-- Polynomial division: f = q * g + r with deg(r) < deg(g) -/
-theorem polynomial_division {F : Type} [Field F]
+/-- Polynomial division: `f = q * g + r` with `deg(r) < deg(g)`. -/
+theorem polynomial_division {F : Type*} [Field F]
     (f g : Polynomial F) (hg : g ≠ 0) :
     ∃! qr : Polynomial F × Polynomial F,
-      f = qr.1 * g + qr.2 ∧
-      (qr.2 = 0 ∨ qr.2.natDegree < g.natDegree) := by
-  -- Polynomial F has EuclideanDomain instance when F is Field
-  -- Use: g * (f / g) + f % g = f (EuclideanDomain.div_add_mod)
-  use (f / g, f % g)
-  constructor
+      f = qr.1 * g + qr.2 ∧ (qr.2 = 0 ∨ qr.2.natDegree < g.natDegree) := by
+  classical
+  refine ⟨(f / g, f % g), ?exist, ?uniq⟩
   · constructor
-    · -- Existence: f = (f / g) * g + (f % g)
-      have h := EuclideanDomain.div_add_mod f g
-      ring_nf at h ⊢
-      exact h.symm
-    · -- Degree bound: deg(f % g) < deg(g)
-      by_cases h : f % g = 0
-      · left; exact h
-      · right
-        -- TODO: Need degree bound for remainder in EuclideanDomain
-        sorry
-  · -- Uniqueness: division algorithm gives unique quotient and remainder
-    intro ⟨q', r'⟩ ⟨h_eq, h_deg⟩
-    -- From f = q*g + r and f = q'*g + r' with deg bounds, derive q = q' and r = r'
-    sorry
+    · simpa [mul_comm] using (EuclideanDomain.div_add_mod f g).symm
+    · by_cases h : f % g = 0
+      · exact Or.inl h
+      · sorry  -- TODO: Correct Polynomial.degree_modByMonic_lt lemma
+  · intro ⟨q', r'⟩ ⟨hq, hdeg⟩
+    -- Uniqueness from Euclidean domain structure
+    sorry  -- TODO: Use EuclideanDomain.quotient_remainder_unique or manual degree argument
 
-/-- Division by vanishing polynomial -/
-noncomputable def divide_by_vanishing {F : Type} [Field F]
-    (f : Polynomial F) (m : ℕ) (ω : F)
-    (h_root : ω ^ m = 1) : Polynomial F × Polynomial F :=
-  let Z_H := vanishing_poly m ω
-  (f /ₘ Z_H, f %ₘ Z_H)  -- Quotient and remainder
+/-- Divide a polynomial by the vanishing polynomial. -/
+noncomputable def divide_by_vanishing {F : Type*} [Field F]
+    (f : Polynomial F) (m : ℕ) (ω : F) : Polynomial F × Polynomial F :=
+  let ZH := vanishing_poly m ω
+  (f /ₘ ZH, f %ₘ ZH)
 
-/-- Remainder is zero iff f vanishes on roots of Z_H -/
-theorem remainder_zero_iff_vanishing {F : Type} [Field F]
-    (f : Polynomial F) (m : ℕ) (ω : F)
-    (h_root : ω ^ m = 1) :
-    let (_, r) := divide_by_vanishing f m ω h_root
-    r = 0 ↔ ∀ i : Fin m, f.eval (ω ^ i.val) = 0 := by
+/-- Remainder is zero iff `f` vanishes on roots of `Z_H`. -/
+theorem remainder_zero_iff_vanishing {F : Type*} [Field F]
+    (f : Polynomial F) (m : ℕ) (ω : F) :
+    let (_, r) := divide_by_vanishing f m ω
+    r = 0 ↔ ∀ i : Fin m, f.eval (ω ^ (i : ℕ)) = 0 := by
   unfold divide_by_vanishing vanishing_poly
   simp
   constructor
