@@ -91,7 +91,21 @@ theorem polynomial_division {F : Type} [Field F]
     ∃! qr : Polynomial F × Polynomial F,
       f = qr.1 * g + qr.2 ∧
       (qr.2 = 0 ∨ qr.2.natDegree < g.natDegree) := by
-  sorry  -- TODO: Use Mathlib division algorithm with pair syntax
+  -- Mathlib provides division for polynomials over fields
+  -- Use EuclideanDomain structure (Polynomial F is EuclideanDomain when F is Field)
+  use (f / g, f % g)
+  constructor
+  · constructor
+    · -- Existence: f = (f / g) * g + (f % g)
+      sorry  -- TODO: Use EuclideanDomain.div_add_mod or field-specific lemma
+    · -- Degree bound: deg(f % g) < deg(g)
+      by_cases h : f % g = 0
+      · left; exact h
+      · right
+        sorry  -- TODO: Use degree bound from EuclideanDomain
+  · -- Uniqueness: if f = q*g + r with deg(r) < deg(g), then q = f/g and r = f%g
+    intro ⟨q', r'⟩ ⟨h_eq, h_deg⟩
+    sorry  -- TODO: Derive from division algorithm uniqueness
 
 /-- Division by vanishing polynomial -/
 noncomputable def divide_by_vanishing {F : Type} [Field F]
