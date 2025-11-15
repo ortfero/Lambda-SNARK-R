@@ -61,8 +61,14 @@ theorem lagrange_basis_property {F : Type} [Field F] [DecidableEq (Fin 1)] (m : 
     sorry  -- TODO: Prove product evaluation via Finset.prod_bij
   · -- Case i ≠ j: Show Lᵢ(ωʲ) = 0
     -- Numerator contains factor (X - ωʲ), evaluation at ωʲ gives 0
-    -- So: (1/denom) * 0 = 0
-    sorry  -- TODO: Use Finset.prod_eq_zero with witness j
+    simp only [if_neg h]
+    suffices h_prod_zero : (∏ k : Fin m, if k = i then 1 else (Polynomial.X - Polynomial.C (ω ^ k.val))).eval (ω ^ j.val) = 0 by
+      rw [h_prod_zero]; ring
+    -- Show product contains zero factor at k = j
+    have h_factor : ((if j = i then (1 : Polynomial F) else (Polynomial.X - Polynomial.C (ω ^ j.val)))).eval (ω ^ j.val) = 0 := by
+      simp only [if_neg (Ne.symm h), Polynomial.eval_sub, Polynomial.eval_X, Polynomial.eval_C, sub_self]
+    -- Polynomial eval is a ring homomorphism, so eval (∏ pᵢ) = ∏ eval(pᵢ)
+    sorry  -- TODO: Use Polynomial.eval_prod or manual proof via induction
 
 /-- Lagrange interpolation: construct polynomial from evaluations -/
 noncomputable def lagrange_interpolate {F : Type} [Field F] [DecidableEq (Fin 1)] (m : ℕ) (ω : F)
@@ -182,7 +188,7 @@ theorem quotient_uniqueness {F : Type} [Field F]
     simp [vanishing_poly, h_m] at h_eq
     cases h_eq with
     | inl h => exact h
-    | inr h => 
+    | inr h =>
       -- h: ∏ x : Fin 0, _ = 0, but empty product = 1
       exfalso
       sorry  -- TODO: Show Finset.prod over empty set equals 1, not 0
