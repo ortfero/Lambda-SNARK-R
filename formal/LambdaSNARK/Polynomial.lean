@@ -42,36 +42,44 @@ noncomputable def vanishing_poly {F : Type} [Field F] (m : ℕ) (ω : F) : Polyn
 -- ============================================================================
 
 /-- Lagrange basis polynomial Lᵢ(X) = ∏_{j≠i} (X - ωʲ) / (ωⁱ - ωʲ) -/
-noncomputable def lagrange_basis {F : Type} [Field F] (m : ℕ) (ω : F) (i : Fin m) : Polynomial F :=
-  -- Simplified placeholder: construct via product
-  -- TODO: Full construction with division by denominators
-  Polynomial.X  -- Placeholder: return X for now
+noncomputable def lagrange_basis {F : Type} [Field F] [DecidableEq (Fin 1)] (m : ℕ) (ω : F) (i : Fin m) : Polynomial F :=
+  let numerator := ∏ j : Fin m, if j = i then (1 : Polynomial F) else (Polynomial.X - Polynomial.C (ω ^ j.val))
+  let denominator := ∏ j : Fin m, if j = i then (1 : F) else (ω ^ i.val - ω ^ j.val)
+  Polynomial.C (1 / denominator) * numerator
 
 /-- Lagrange basis property: Lᵢ(ωʲ) = δᵢⱼ -/
-theorem lagrange_basis_property {F : Type} [Field F] (m : ℕ) (ω : F) (i j : Fin m)
-    (h_omega : ω ^ m = 1) :
+theorem lagrange_basis_property {F : Type} [Field F] [DecidableEq (Fin 1)] (m : ℕ) (ω : F) (i j : Fin m)
+    (h_omega : ω ^ m = 1) (h_prim : ∀ k : Fin m, k.val ≠ 0 → ω ^ k.val ≠ 1) :
     (lagrange_basis m ω i).eval (ω ^ j.val) = if i = j then 1 else 0 := by
-  -- Placeholder basis returns X, so evaluation gives ω^j
-  -- Full proof requires proper Lagrange basis construction
   unfold lagrange_basis
-  simp [Polynomial.eval_X]
-  -- TODO: This is a placeholder; real proof needs:
-  -- 1. Construct L_i = ∏_{k≠i} (X - ω^k)/(ω^i - ω^k)
-  -- 2. Show L_i(ω^i) = 1 via cancellation
-  -- 3. Show L_i(ω^j) = 0 for j≠i via (ω^j - ω^j) term
-  sorry
+  simp only [Polynomial.eval_mul, Polynomial.eval_C]
+  by_cases h : i = j
+  · -- Case i = j: Show Lᵢ(ωⁱ) = 1
+    subst h
+    -- Numerator evaluates to ∏_{k≠i} (ωⁱ - ωᵏ) = denominator
+    -- So: (1/denom) * denom = 1
+    sorry  -- TODO: Prove product evaluation via Finset.prod_bij
+  · -- Case i ≠ j: Show Lᵢ(ωʲ) = 0
+    -- Numerator contains factor (X - ωʲ), evaluation at ωʲ gives 0
+    -- So: (1/denom) * 0 = 0
+    sorry  -- TODO: Use Finset.prod_eq_zero with witness j
 
 /-- Lagrange interpolation: construct polynomial from evaluations -/
-noncomputable def lagrange_interpolate {F : Type} [Field F] (m : ℕ) (ω : F)
+noncomputable def lagrange_interpolate {F : Type} [Field F] [DecidableEq (Fin 1)] (m : ℕ) (ω : F)
     (evals : Fin m → F) : Polynomial F :=
   ∑ i : Fin m, Polynomial.C (evals i) * lagrange_basis m ω i
 
 /-- Interpolation correctness: p(ωⁱ) = evals(i) -/
-theorem lagrange_interpolate_eval {F : Type} [Field F]
+theorem lagrange_interpolate_eval {F : Type} [Field F] [DecidableEq (Fin 1)]
     (m : ℕ) (ω : F) (evals : Fin m → F) (i : Fin m)
     (h_root : ω ^ m = 1) (h_prim : ∀ k : Fin m, k.val ≠ 0 → ω ^ k.val ≠ 1) :
     (lagrange_interpolate m ω evals).eval (ω ^ i.val) = evals i := by
-  sorry  -- TODO: Prove via lagrange_basis_property and sum collapse
+  unfold lagrange_interpolate
+  simp only [Polynomial.eval_finset_sum, Polynomial.eval_mul, Polynomial.eval_C]
+  -- Expand: ∑ⱼ evals(j) · Lⱼ(ωⁱ)
+  -- By lagrange_basis_property: Lⱼ(ωⁱ) = δⱼᵢ
+  -- So sum collapses to evals(i) · 1 = evals(i)
+  sorry  -- TODO: Use Finset.sum_eq_single with lagrange_basis_property
 
 -- ============================================================================
 -- Polynomial Division
@@ -114,12 +122,12 @@ theorem remainder_zero_iff_vanishing {F : Type} [Field F]
 -- ============================================================================
 
 /-- Construct polynomial from witness vector via Lagrange interpolation -/
-noncomputable def witness_to_poly {F : Type} [Field F] {n : ℕ}
+noncomputable def witness_to_poly {F : Type} [Field F] [DecidableEq (Fin 1)] {n : ℕ}
     (w : Witness F n) (m : ℕ) (ω : F)
     (h_root : ω ^ m = 1) (h_size : m ≤ n) : Polynomial F :=
   -- Interpolate witness values over evaluation domain
   -- For each point i in [0,m), take witness value at index i
-  lagrange_interpolate m ω (fun i => 
+  lagrange_interpolate m ω (fun i =>
     if h : i.val < n then w ⟨i.val, h⟩ else 0)
 
 /-- Constraint polynomial evaluation at domain points -/
