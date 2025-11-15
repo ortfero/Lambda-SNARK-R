@@ -10,7 +10,9 @@ use lambda_snark::{
 use rand::thread_rng;
 use rand::Rng;
 
-const LEGACY_MODULUS: u64 = 17592186044417; // 2^44 + 1 (prime, NTT-compatible)
+// NTT-friendly prime: q = 17592169062401, supports 2^13 = 8192 NTT
+// φ(q) = 2147481575 × 2^13, generator g = 3
+const NTT_MODULUS: u64 = 17592169062401;
 
 /// Create R1CS for m multiplication gates
 fn create_multiplication_gates(m: usize, modulus: u64) -> R1CS {
@@ -114,19 +116,17 @@ fn gcd(mut a: u64, mut b: u64) -> u64 {
 fn bench_prove_r1cs(c: &mut Criterion) {
     let mut group = c.benchmark_group("prove_r1cs");
     
-    // TODO(M7.2): Fix lagrange_basis() to use NTT roots instead of 0,1,2,...
-    // Currently m≥32 fails due to non-invertible denominators with sequential points.
-    // See r1cs.rs:lagrange_basis() - needs root-of-unity interpolation points.
-    for m in [4, 8, 16].iter() {  // Limited to m≤16 until lagrange_basis fixed
-        let r1cs = create_multiplication_gates(*m, LEGACY_MODULUS);
-        let witness = create_witness(*m, LEGACY_MODULUS);
+    // Now supports m=32+ with NTT roots (M7.2 completed)
+    for m in [4, 8, 16, 32].iter() {
+        let r1cs = create_multiplication_gates(*m, NTT_MODULUS);
+        let witness = create_witness(*m, NTT_MODULUS);
         
         let params = Params::new(
             SecurityLevel::Bits128,
             Profile::RingB {
                 n: 4096,
                 k: 2,
-                q: LEGACY_MODULUS,
+                q: NTT_MODULUS,
                 sigma: 3.19,
             },
         );
@@ -151,17 +151,16 @@ fn bench_prove_r1cs(c: &mut Criterion) {
 fn bench_prove_r1cs_zk(c: &mut Criterion) {
     let mut group = c.benchmark_group("prove_r1cs_zk");
     
-    // Limited to m≤16 until lagrange_basis supports NTT roots (see bench_prove_r1cs TODO)
-    for m in [4, 8, 16].iter() {
-        let r1cs = create_multiplication_gates(*m, LEGACY_MODULUS);
-        let witness = create_witness(*m, LEGACY_MODULUS);
+    for m in [4, 8, 16, 32].iter() {
+        let r1cs = create_multiplication_gates(*m, NTT_MODULUS);
+        let witness = create_witness(*m, NTT_MODULUS);
         
         let params = Params::new(
             SecurityLevel::Bits128,
             Profile::RingB {
                 n: 4096,
                 k: 2,
-                q: LEGACY_MODULUS,
+                q: NTT_MODULUS,
                 sigma: 3.19,
             },
         );
@@ -190,15 +189,15 @@ fn bench_overhead_ratio(c: &mut Criterion) {
     
     // Use m=16 for overhead measurement
     let m = 16;
-    let r1cs = create_multiplication_gates(m, LEGACY_MODULUS);
-    let witness = create_witness(m, LEGACY_MODULUS);
+    let r1cs = create_multiplication_gates(m, NTT_MODULUS);
+    let witness = create_witness(m, NTT_MODULUS);
     
     let params = Params::new(
         SecurityLevel::Bits128,
         Profile::RingB {
             n: 4096,
             k: 2,
-            q: LEGACY_MODULUS,
+            q: NTT_MODULUS,
             sigma: 3.19,
         },
     );

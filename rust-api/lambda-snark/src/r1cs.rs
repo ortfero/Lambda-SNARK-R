@@ -569,10 +569,60 @@ fn mod_inverse(a: u64, m: u64) -> u64 {
     t as u64
 }
 
+/// NTT-friendly prime modulus (supports up to 2^13 = 8192 NTT)
+/// q = 17592169062401 (prime), φ(q) = 2147481575 × 2^13
+const NTT_FRIENDLY_MODULUS: u64 = 17592169062401;
+
+/// Precomputed primitive roots of unity for NTT_FRIENDLY_MODULUS
+/// Each entry: (order m, primitive m-th root ω) where ω^m ≡ 1 (mod q)
+/// Generator g = 3
+const ROOTS_OF_UNITY: &[(usize, u64)] = &[
+    (    4,     981206394875),  // 2^2
+    (    8,    4268641988953),  // 2^3
+    (   16,    9400386778549),  // 2^4
+    (   32,   15690227524213),  // 2^5
+    (   64,    8332322609789),  // 2^6
+    (  128,    9249819209096),  // 2^7
+    (  256,    5221410271124),  // 2^8
+    (  512,    9594533594163),  // 2^9
+    ( 1024,   11016271016603),  // 2^10
+    ( 2048,   14373677444369),  // 2^11
+    ( 4096,   11176258803537),  // 2^12
+    ( 8192,    9037003627149),  // 2^13
+];
+
+/// Get primitive root of unity for domain size m
+///
+/// Returns ω such that ω^m ≡ 1 (mod modulus) and ω^(m/2) ≡ -1 (mod modulus)
+///
+/// # Strategy (Variant C - Hybrid)
+/// 1. If modulus == NTT_FRIENDLY_MODULUS and m in precomputed table → O(1) lookup
+/// 2. Otherwise → Fallback to sequential points 0,1,2,... (legacy behavior)
+///
+/// # Arguments
+/// * `m` - Domain size (must be power of 2 for NTT)
+/// * `modulus` - Field modulus
+///
+/// # Returns
+/// Primitive m-th root of unity, or None if not available
+fn get_ntt_root(m: usize, modulus: u64) -> Option<u64> {
+    if modulus == NTT_FRIENDLY_MODULUS {
+        // Fast path: precomputed roots
+        ROOTS_OF_UNITY.iter()
+            .find(|&&(order, _)| order == m)
+            .map(|&(_, root)| root)
+    } else {
+        // Fallback: no NTT roots for non-standard modulus
+        None
+    }
+}
+
 /// Lagrange basis polynomial L_i(X) evaluated at domain points
 ///
-/// For domain H = {0, 1, 2, ..., m-1}, computes:
-///   L_i(X) = Π_{j≠i} (X - j) / (i - j)
+/// For NTT-friendly modulus with precomputed roots, uses domain H = {1, ω, ω², ..., ω^(m-1)}
+/// Otherwise falls back to H = {0, 1, 2, ..., m-1} (legacy, may fail for large m)
+///
+/// Computes: L_i(X) = Π_{j≠i} (X - ω^j) / (ω^i - ω^j)
 ///
 /// Returns coefficients of L_i(X) as a polynomial.
 ///
@@ -590,7 +640,72 @@ fn mod_inverse(a: u64, m: u64) -> u64 {
 fn lagrange_basis(i: usize, m: usize, modulus: u64) -> Vec<u64> {
     assert!(i < m, "Lagrange index i={} must be < m={}", i, m);
     
-    // Start with constant polynomial 1
+    // Try NTT roots first (Variant C - Hybrid)
+    if let Some(omega) = get_ntt_root(m, modulus) {
+        // Fast path: Use NTT domain {1, ω, ω², ..., ω^(m-1)}
+        lagrange_basis_ntt(i, m, omega, modulus)
+    } else {
+        // Fallback: Sequential domain {0, 1, 2, ..., m-1}
+        lagrange_basis_sequential(i, m, modulus)
+    }
+}
+
+/// Lagrange basis using NTT roots domain
+fn lagrange_basis_ntt(i: usize, m: usize, omega: u64, modulus: u64) -> Vec<u64> {
+    // Domain points: x_j = ω^j for j = 0, 1, ..., m-1
+    // L_i(X) = Π_{j≠i} (X - ω^j) / (ω^i - ω^j)
+    
+    let mut poly = vec![1u64];
+    
+    // Compute domain points
+    let mut omega_powers = vec![1u64];
+    for _ in 1..m {
+        let prev = omega_powers.last().unwrap();
+        omega_powers.push(((*prev as u128 * omega as u128) % modulus as u128) as u64);
+    }
+    
+    // Multiply by (X - ω^j) for all j ≠ i
+    for j in 0..m {
+        if j == i {
+            continue;
+        }
+        poly = poly_mul_linear(&poly, omega_powers[j], modulus);
+    }
+    
+    // Compute denominator: Π_{j≠i} (ω^i - ω^j)
+    let mut denom = 1u64;
+    let omega_i = omega_powers[i];
+    
+    for j in 0..m {
+        if j == i {
+            continue;
+        }
+        
+        let omega_j = omega_powers[j];
+        let diff = if omega_i >= omega_j {
+            (omega_i - omega_j) % modulus
+        } else {
+            modulus - ((omega_j - omega_i) % modulus)
+        };
+        
+        denom = ((denom as u128 * diff as u128) % modulus as u128) as u64;
+    }
+    
+    // Divide all coefficients by denominator
+    let denom_inv = mod_inverse(denom, modulus);
+    for coeff in poly.iter_mut() {
+        *coeff = ((*coeff as u128 * denom_inv as u128) % modulus as u128) as u64;
+    }
+    
+    poly.resize(m, 0);
+    poly
+}
+
+/// Lagrange basis using sequential domain (legacy, may fail for large m)
+fn lagrange_basis_sequential(i: usize, m: usize, modulus: u64) -> Vec<u64> {
+    // Domain points: x_j = j for j = 0, 1, ..., m-1
+    // L_i(X) = Π_{j≠i} (X - j) / (i - j)
+    
     let mut poly = vec![1u64];
     
     // Multiply by (X - j) for all j ≠ i
