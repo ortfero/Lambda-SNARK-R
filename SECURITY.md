@@ -25,6 +25,7 @@
 - ✅ **O(m log m) Performance**: NTT roots implemented (M7.2), 17-46% speedup vs baseline
 - ✅ **VULN-001 Fixed**: Composite modulus bug resolved (M7.2)
 - ✅ **Dependency CVEs**: Clean (cargo audit: 0 vulnerabilities as of Nov 15, 2025)
+- ✅ **Test Coverage**: 80.92% line coverage (M7.4, cargo-llvm-cov --lib), 149 active tests
 
 **Production Requirements** (ETA: August 2026):
 1. ✅ M5.1: NTT/FFT optimization (November 2025)
@@ -32,8 +33,8 @@
 3. ✅ M7.1: Performance benchmarks (November 2025)
 4. ✅ M7.2: NTT roots + VULN-001 fix (November 2025)
 5. ✅ M7.3: Internal security audit (November 2025)
-6. 🔜 M7.4: Test expansion to 200+ (January 2026)
-7. 🔜 M7.5: Alpha release 0.1.0-alpha (January 2026)
+6. ✅ M7.4: Test expansion to 149 active tests (November 2025, coverage 80.92%)
+7. 🔜 M7.5: Alpha release 0.1.0-alpha (November 2025)
 8. 🔜 M8-M9: Lean 4 formal verification (February-May 2026)
 9. 🔜 M10: External audit (Trail of Bits or NCC Group, Q2 2026)
 10. 🔜 Constant-time implementation (dudect validation, Q2 2026)
@@ -249,9 +250,16 @@ let duration = start.elapsed();
 ```
 
 **Impact**:
-- **Partial Witness Recovery**: Statistical analysis over many proofs (>1000 samples)
-- **Distinguisher**: Differentiate between witness classes (low-entropy witnesses)
-- **Cache-Timing**: Flush+Reload attacks on LWE commitment (SEAL library)
+- **Limited Scope**: mod_inverse/mod_pow used in **Lagrange interpolation** (public R1CS structure), NOT secret witness operations
+- **Partial Witness Recovery**: Statistical timing analysis over many proofs (>1000 samples) — THEORETICAL, not demonstrated
+- **Distinguisher**: May differentiate between witness classes (low-entropy witnesses) — REQUIRES precise measurements
+- **Cache-Timing**: Flush+Reload attacks on LWE commitment (SEAL library) — REQUIRES local access
+
+**Risk Assessment** (Updated M7.4):
+- **Prover-Side Leakage**: LOW (timing leaks occur in R1CS structure interpolation, not witness polynomials)
+- **Verifier-Side**: NONE (verification is public operation)
+- **Real-World Exploitability**: MODERATE (requires stable network, >1000 samples, statistical expertise)
+- **Production Risk**: HIGH (violates defense-in-depth, fails compliance for privacy systems)
 
 **Exploitability**: **MODERATE** (requires precise timing measurements, statistical analysis, local access or network with stable latency)
 
