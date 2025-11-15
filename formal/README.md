@@ -34,7 +34,7 @@ lake env lean LambdaSNARK/Soundness.lean
 **Current (v0.1.0-alpha)**:
 - ✅ Basic definitions (R1CS, Field, Params)
 - ✅ Soundness statement (proof pending)
-- ⏳ Zero-knowledge statement (TODO)
+- ✅ Zero-knowledge implementation (M5.2, statement TODO)
 - ⏳ Completeness statement (TODO)
 
 **Target (v1.0.0)**:

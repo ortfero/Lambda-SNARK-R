@@ -76,7 +76,7 @@ Added Cooley-Tukey NTT for O(m log m) polynomial operations (1000× speedup) and
 ### Summary
 🔄 **Development Build** — M4 R1CS Subsystem Complete (60% overall progress)
 
-Full working R1CS prover and verifier with dual-challenge soundness (ε ≤ 2^-48). Includes CircuitBuilder DSL, 3 CLI examples (multiplication, range proof, benchmark), and comprehensive documentation. **NOT zero-knowledge** (witness blinding deferred to M5.2). **NOT production-ready** (no security audit, O(m²) polynomial operations).
+Full working R1CS prover and verifier with dual-challenge soundness (ε ≤ 2^-48). Includes CircuitBuilder DSL, 3 CLI examples (multiplication, range proof, benchmark), and comprehensive documentation. **Zero-Knowledge implemented in M5.2** (November 2025). **NOT production-ready** (no security audit, M5.1 NTT optimization added November 2025).
 
 **Key Metrics**:
 - **Code**: 3,167 lines (Rust API + CLI)
@@ -270,7 +270,7 @@ Full working R1CS prover and verifier with dual-challenge soundness (ε ≤ 2^-4
 #### ⚠️ O(m²) Performance
 - **Issue**: Lagrange interpolation scales quadratically
 - **Impact**: Limited to small circuits (m ≤ 1000)
-- **Fix**: M5.1 FFT/NTT for O(m log m) (ETA: Dec 2025)
+- **Status**: Fixed in M5.1 via Cooley-Tukey NTT (commits 91ab79f-0002772, Nov 15, 2025)
 
 ---
 
