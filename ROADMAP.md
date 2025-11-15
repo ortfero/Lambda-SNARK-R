@@ -30,6 +30,11 @@
 
 ## 🗺️ Milestone Dependencies
 
+![Milestone Dependencies](docs/images/milestone-dependencies.svg)
+
+<details>
+<summary>View Mermaid Source</summary>
+
 ```mermaid
 graph TD
     M1[M1: Foundation] --> M2[M2: LWE Context]
@@ -43,6 +48,8 @@ graph TD
     M5.2 --> M7
     M6 --> M7
 ```
+
+</details>
 
 **Critical Path**: M1 → M3 → M4 → M5.2 → M7 (soundness + ZK)  
 **Parallel Track**: M6 (documentation can proceed independently)

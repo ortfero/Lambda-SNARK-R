@@ -3,6 +3,10 @@
 # Default target
 .DEFAULT_GOAL := help
 
+# VCPKG environment (adjust path to your installation)
+VCPKG_ROOT ?= /home/kirill/vcpkg
+export VCPKG_ROOT
+
 # Colors for output
 CYAN := \033[0;36m
 GREEN := \033[0;32m
@@ -15,6 +19,13 @@ help: ## Show this help message
 
 setup: ## Install dependencies and setup development environment
 	@echo "$(CYAN)Setting up development environment...$(RESET)"
+	@# Check for vcpkg
+	@if [ ! -d "$$VCPKG_ROOT" ]; then \
+		echo "Error: VCPKG_ROOT ($$VCPKG_ROOT) not found."; \
+		echo "Install vcpkg: git clone https://github.com/microsoft/vcpkg && ./vcpkg/bootstrap-vcpkg.sh"; \
+		echo "Then set: export VCPKG_ROOT=/path/to/vcpkg"; \
+		exit 1; \
+	fi
 	@# Install pre-commit hooks
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		pre-commit install; \

@@ -1,0 +1,26 @@
+graph TD
+    BUILD[Circuit Building]
+    INTERP[Lagrange Interpolation BOTTLENECK]
+    COMMIT[LWE Commitment]
+    EVAL[Polynomial Evaluation]
+    TOTAL_PROVE[Total Prover]
+    RECOMPUTE[Recompute Challenges]
+    VANISH[Evaluate Z_H]
+    CHECK_EQ[Check Equations]
+    VERIFY_OPEN[Verify LWE Openings]
+    TOTAL_VERIFY[Total Verifier]
+    FFT[FFT/NTT Optimization]
+    NTT_MOD[NTT-Friendly Modulus]
+    
+    BUILD --> INTERP
+    INTERP --> COMMIT
+    COMMIT --> EVAL
+    EVAL --> TOTAL_PROVE
+    
+    RECOMPUTE --> VANISH
+    VANISH --> CHECK_EQ
+    CHECK_EQ --> VERIFY_OPEN
+    VERIFY_OPEN --> TOTAL_VERIFY
+    
+    INTERP -.-> FFT
+    INTERP -.-> NTT_MOD

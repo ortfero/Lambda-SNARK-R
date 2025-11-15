@@ -1,0 +1,17 @@
+graph TD
+    CORE[lambda-snark-core]
+    SYS[lambda-snark-sys]
+    API[lambda-snark]
+    CLI[lambda-snark-cli]
+    SEAL_LIB[Microsoft SEAL v4.1.1]
+    LWE_CPP[lwe_context.cpp]
+    SHAKE[SHAKE256 sha3 crate]
+    CMAKE[CMake 3.20+]
+    
+    CORE --> API
+    SYS --> API
+    API --> CLI
+    SEAL_LIB --> LWE_CPP
+    LWE_CPP --> SYS
+    SHAKE --> API
+    CMAKE --> LWE_CPP

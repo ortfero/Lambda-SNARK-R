@@ -73,7 +73,7 @@ impl Polynomial {
     
     /// Evaluate polynomial at point α.
     ///
-    /// Computes f(α) = Σ coeffs[i] · α^i mod q using Horner's method.
+    /// Computes f(α) = Σ coeffs\[i\] · α^i mod q using Horner's method.
     ///
     /// # Arguments
     /// * `alpha` - Evaluation point

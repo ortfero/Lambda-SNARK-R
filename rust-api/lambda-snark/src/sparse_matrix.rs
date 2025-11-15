@@ -6,7 +6,7 @@
 //! # Format
 //!
 //! A sparse matrix M ∈ F_q^{m×n} is stored as:
-//! - `row_ptr`: Offset array, row_ptr[i] = start index in col_indices for row i
+//! - `row_ptr`: Offset array, row_ptr\[i\] = start index in col_indices for row i
 //! - `col_indices`: Column indices of non-zero entries
 //! - `values`: Non-zero values (field elements)
 //!

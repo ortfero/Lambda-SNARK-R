@@ -273,7 +273,7 @@ impl R1CS {
     ///
     /// # Returns
     ///
-    /// (a_evals, b_evals, c_evals) where each is Vec<u64> of length m
+    /// (a_evals, b_evals, c_evals) where each is `Vec<u64>` of length m
     ///
     /// # Example
     ///
@@ -323,7 +323,7 @@ impl R1CS {
     ///
     /// # Returns
     ///
-    /// Ok(q_coeffs) where q_coeffs is Vec<u64> of quotient polynomial coefficients
+    /// Ok(q_coeffs) where q_coeffs is `Vec<u64>` of quotient polynomial coefficients
     /// Err if witness doesn't satisfy R1CS (Q would not be polynomial)
     ///
     /// # Example

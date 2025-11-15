@@ -22,37 +22,28 @@ This document provides architectural overview of ΛSNARK-R system components, da
 
 High-level view of cryptographic components in ΛSNARK-R.
 
+![System Components Diagram](images/system-components.svg)
+
+<details>
+<summary>View Mermaid Source</summary>
+
 ```mermaid
-flowchart TB
-    subgraph "M1: Foundation"
-        MOD[Modular Arithmetic<br/>mod_add, mod_mul, mod_inverse<br/>F_q operations]
-        POLY[Polynomial Operations<br/>poly_add, poly_mul, poly_eval<br/>F_q[X] ring]
-    end
-    
-    subgraph "M2: LWE Context"
-        SEAL[SEAL Library<br/>Microsoft FHE<br/>C++ implementation]
-        LWE[LWE Commitment<br/>commit, verify_opening<br/>Module-LWE hardness]
-        FS[Fiat-Shamir<br/>SHAKE256 challenges<br/>Random Oracle Model]
-    end
-    
-    subgraph "M3: R1CS Structure"
-        SPARSE[Sparse Matrix<br/>A, B, C matrices<br/>~24 bytes/entry]
-        R1CS[R1CS System<br/>Az ⊙ Bz = Cz<br/>constraint satisfaction]
-    end
-    
-    subgraph "M4: R1CS Prover/Verifier"
-        LAGRANGE[Lagrange Interpolation<br/>O(m²) polynomial ops<br/>witness → polynomials]
-        QUOTIENT[Quotient Polynomial<br/>Q = (Az·Bz - Cz) / Z_H<br/>core proving operation]
-        PROVER[prove_r1cs<br/>216-byte proofs<br/>dual-challenge soundness]
-        VERIFIER[verify_r1cs<br/>~1ms verification<br/>ε ≤ 2^-88]
-    end
-    
-    subgraph "M5: Optimizations"
-        NTT[Cooley-Tukey NTT<br/>O(m log m) FFT<br/>1000× speedup]
-        ZK[Zero-Knowledge<br/>Q'(X) = Q(X) + r·Z_H(X)<br/>polynomial blinding]
-        PROVER_ZK[prove_r1cs_zk<br/>224-byte ZK proofs<br/>witness hiding]
-        VERIFIER_ZK[verify_r1cs_zk<br/>unblinding verification<br/>ε ≤ 2^-48]
-    end
+graph TD
+    MOD[Modular Arithmetic]
+    POLY[Polynomial Operations]
+    SEAL[SEAL Library]
+    LWE[LWE Commitment]
+    FS[Fiat-Shamir]
+    SPARSE[Sparse Matrix]
+    R1CS[R1CS System]
+    LAGRANGE[Lagrange Interpolation]
+    QUOTIENT[Quotient Polynomial]
+    PROVER[prove_r1cs]
+    VERIFIER[verify_r1cs]
+    NTT[NTT FFT]
+    ZK[Zero-Knowledge]
+    PROVER_ZK[prove_r1cs_zk]
+    VERIFIER_ZK[verify_r1cs_zk]
     
     MOD --> POLY
     POLY --> LAGRANGE
@@ -73,23 +64,9 @@ flowchart TB
     ZK --> PROVER_ZK
     PROVER --> VERIFIER
     PROVER_ZK --> VERIFIER_ZK
-    
-    style MOD fill:#e1f5ff
-    style POLY fill:#e1f5ff
-    style SEAL fill:#fff4e1
-    style LWE fill:#fff4e1
-    style FS fill:#fff4e1
-    style SPARSE fill:#e8f5e9
-    style R1CS fill:#e8f5e9
-    style LAGRANGE fill:#f3e5f5
-    style QUOTIENT fill:#f3e5f5
-    style PROVER fill:#f3e5f5
-    style VERIFIER fill:#f3e5f5
-    style NTT fill:#ffe0b2
-    style ZK fill:#ffe0b2
-    style PROVER_ZK fill:#ffe0b2
-    style VERIFIER_ZK fill:#ffe0b2
 ```
+
+</details>
 
 **Legend**:
 - 🔵 **M1 Foundation** (Blue): Core cryptographic primitives
@@ -200,24 +177,21 @@ sequenceDiagram
 
 Rust crate hierarchy and FFI boundaries.
 
+![Module Dependencies Diagram](images/module-dependencies.svg)
+
+<details>
+<summary>View Mermaid Source</summary>
+
 ```mermaid
-graph TB
-    subgraph "Rust Crates"
-        CORE[lambda-snark-core<br/>#![no_std]<br/>Core types, modular arithmetic]
-        SYS[lambda-snark-sys<br/>FFI bindings<br/>Rust ↔ C++ bridge]
-        API[lambda-snark<br/>Public API<br/>prove_r1cs, verify_r1cs]
-        CLI[lambda-snark-cli<br/>CLI tool<br/>r1cs-example, benchmark]
-    end
-    
-    subgraph "C++ Core"
-        SEAL_LIB[Microsoft SEAL<br/>v4.1.1<br/>LWE commitment]
-        LWE_CPP[lwe_context.cpp<br/>commit, verify_opening<br/>542 lines]
-    end
-    
-    subgraph "External Dependencies"
-        SHAKE[SHAKE256<br/>sha3 crate<br/>Fiat-Shamir]
-        CMAKE[CMake 3.20+<br/>C++ build system]
-    end
+graph TD
+    CORE[lambda-snark-core]
+    SYS[lambda-snark-sys]
+    API[lambda-snark]
+    CLI[lambda-snark-cli]
+    SEAL_LIB[Microsoft SEAL v4.1.1]
+    LWE_CPP[lwe_context.cpp]
+    SHAKE[SHAKE256 sha3 crate]
+    CMAKE[CMake 3.20+]
     
     CORE --> API
     SYS --> API
@@ -226,16 +200,9 @@ graph TB
     LWE_CPP --> SYS
     SHAKE --> API
     CMAKE --> LWE_CPP
-    
-    style CORE fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-    style SYS fill:#fff4e1,stroke:#e65100,stroke-width:2px
-    style API fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    style CLI fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    style SEAL_LIB fill:#ffebee,stroke:#b71c1c,stroke-width:2px
-    style LWE_CPP fill:#ffebee,stroke:#b71c1c,stroke-width:2px
-    style SHAKE fill:#e0f2f1,stroke:#004d40,stroke-width:2px
-    style CMAKE fill:#e0f2f1,stroke:#004d40,stroke-width:2px
 ```
+
+</details>
 
 **Dependency Graph**:
 ```
@@ -260,29 +227,23 @@ lambda-snark-cli
 
 Trust boundaries and attack surfaces.
 
+![Security Boundaries Diagram](images/security-boundaries.svg)
+
+<details>
+<summary>View Mermaid Source</summary>
+
 ```mermaid
-flowchart LR
-    subgraph "Untrusted Input"
-        WITNESS[Witness z<br/>Prover-controlled]
-        PUBLIC[Public Inputs<br/>Verifier knows]
-        CIRCUIT[Circuit R1CS<br/>Application-defined]
-    end
-    
-    subgraph "Trusted Compute"
-        PROVER_RUST[Prover (Rust)<br/>prove_r1cs]
-        LWE_FFI[LWE Context (C++)<br/>SEAL library]
-    end
-    
-    subgraph "Cryptographic Guarantees"
-        PROOF[ProofR1CS<br/>216 bytes]
-        SOUNDNESS[Soundness ε ≤ 2^-88<br/>Malicious prover cannot cheat]
-        ZK[Zero-Knowledge ❌<br/>NOT YET (M5.2 planned)]
-    end
-    
-    subgraph "Verifier (Untrusted)"
-        VERIFIER_RUST[Verifier (Rust)<br/>verify_r1cs]
-        VERIFIER_OUT[Accept/Reject]
-    end
+graph LR
+    WITNESS[Witness z]
+    PUBLIC[Public Inputs]
+    CIRCUIT[Circuit R1CS]
+    PROVER_RUST[Prover Rust]
+    LWE_FFI[LWE Context C++]
+    PROOF[ProofR1CS 216 bytes]
+    SOUNDNESS[Soundness ε ≤ 2^-88]
+    ZK[Zero-Knowledge ✅ M5]
+    VERIFIER_RUST[Verifier Rust]
+    VERIFIER_OUT[Accept/Reject]
     
     WITNESS --> PROVER_RUST
     PUBLIC --> PROVER_RUST
@@ -295,18 +256,9 @@ flowchart LR
     PUBLIC --> VERIFIER_RUST
     CIRCUIT --> VERIFIER_RUST
     VERIFIER_RUST --> VERIFIER_OUT
-    
-    style WITNESS fill:#ffcdd2,stroke:#c62828
-    style PUBLIC fill:#c8e6c9,stroke:#2e7d32
-    style CIRCUIT fill:#c8e6c9,stroke:#2e7d32
-    style PROVER_RUST fill:#fff9c4,stroke:#f57f17
-    style LWE_FFI fill:#ffccbc,stroke:#d84315
-    style PROOF fill:#b3e5fc,stroke:#0277bd
-    style SOUNDNESS fill:#c8e6c9,stroke:#2e7d32
-    style ZK fill:#ffcdd2,stroke:#c62828
-    style VERIFIER_RUST fill:#e1bee7,stroke:#6a1b9a
-    style VERIFIER_OUT fill:#e1bee7,stroke:#6a1b9a
 ```
+
+</details>
 
 **Threat Model**:
 - 🔴 **Untrusted**: Witness (prover controls), Verifier (may be adversarial)
@@ -328,28 +280,25 @@ See [SECURITY.md](../SECURITY.md) for detailed threat model and mitigations.
 
 Bottleneck analysis and optimization roadmap.
 
+![Performance Characteristics Diagram](images/performance-characteristics.svg)
+
+<details>
+<summary>View Mermaid Source</summary>
+
 ```mermaid
-graph TB
-    subgraph "Prover Performance"
-        BUILD[Circuit Building<br/>0.03-0.06 ms<br/>O(m) constraints]
-        INTERP[Lagrange Interpolation<br/>BOTTLENECK ⚠️<br/>O(m²) naïve implementation]
-        COMMIT[LWE Commitment<br/>4-6 ms<br/>Dominates at small m]
-        EVAL[Polynomial Evaluation<br/>O(m) per point<br/>2 points (α, β)]
-        TOTAL_PROVE[Total Prover<br/>4.45-5.92 ms<br/>for m=10-30]
-    end
-    
-    subgraph "Verifier Performance"
-        RECOMPUTE[Recompute Challenges<br/>~0.1 ms<br/>SHAKE256]
-        VANISH[Evaluate Z_H<br/>~0.2 ms<br/>∏(α-i) for i=0..m-1]
-        CHECK_EQ[Check Equations<br/>~0.1 ms<br/>Q·Z_H == A_z·B_z - C_z]
-        VERIFY_OPEN[Verify LWE Openings<br/>~0.6 ms<br/>SEAL verification]
-        TOTAL_VERIFY[Total Verifier<br/>~1.0 ms<br/>constant in m]
-    end
-    
-    subgraph "Optimizations (M5.1 Planned)"
-        FFT[FFT/NTT<br/>O(m log m)<br/>1000× speedup target]
-        NTT_MOD[NTT-Friendly Modulus<br/>q = 2^64 - 2^32 + 1<br/>supports 2^32-point NTT]
-    end
+graph TD
+    BUILD[Circuit Building]
+    INTERP[Lagrange Interpolation BOTTLENECK]
+    COMMIT[LWE Commitment]
+    EVAL[Polynomial Evaluation]
+    TOTAL_PROVE[Total Prover]
+    RECOMPUTE[Recompute Challenges]
+    VANISH[Evaluate Z_H]
+    CHECK_EQ[Check Equations]
+    VERIFY_OPEN[Verify LWE Openings]
+    TOTAL_VERIFY[Total Verifier]
+    FFT[FFT/NTT Optimization]
+    NTT_MOD[NTT-Friendly Modulus]
     
     BUILD --> INTERP
     INTERP --> COMMIT
@@ -361,15 +310,11 @@ graph TB
     CHECK_EQ --> VERIFY_OPEN
     VERIFY_OPEN --> TOTAL_VERIFY
     
-    INTERP -.M5.1 optimization.-> FFT
-    INTERP -.M5.1 optimization.-> NTT_MOD
-    
-    style INTERP fill:#ffcdd2,stroke:#c62828,stroke-width:3px
-    style FFT fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
-    style NTT_MOD fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
-    style TOTAL_PROVE fill:#e1f5ff,stroke:#0277bd,stroke-width:2px
-    style TOTAL_VERIFY fill:#e1f5ff,stroke:#0277bd,stroke-width:2px
+    INTERP -.-> FFT
+    INTERP -.-> NTT_MOD
 ```
+
+</details>
 
 **Current Performance** (as of commit d89f201):
 

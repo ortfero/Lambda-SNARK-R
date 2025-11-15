@@ -134,7 +134,7 @@ pub enum Profile {
         /// Gaussian parameter σ.
         sigma: f64,
     },
-    /// Ring profile: R_q = Z_q[X]/(X^n + 1).
+    /// Ring profile: R_q = Z_q\[X\]/(X^n + 1).
     RingB {
         /// Ring degree (power of 2).
         n: usize,

@@ -1,0 +1,23 @@
+graph LR
+    WITNESS[Witness z]
+    PUBLIC[Public Inputs]
+    CIRCUIT[Circuit R1CS]
+    PROVER_RUST[Prover Rust]
+    LWE_FFI[LWE Context C++]
+    PROOF[ProofR1CS 216 bytes]
+    SOUNDNESS[Soundness ε ≤ 2^-88]
+    ZK[Zero-Knowledge ✅ M5]
+    VERIFIER_RUST[Verifier Rust]
+    VERIFIER_OUT[Accept/Reject]
+    
+    WITNESS --> PROVER_RUST
+    PUBLIC --> PROVER_RUST
+    CIRCUIT --> PROVER_RUST
+    PROVER_RUST --> LWE_FFI
+    LWE_FFI --> PROOF
+    PROOF --> SOUNDNESS
+    PROOF --> ZK
+    PROOF --> VERIFIER_RUST
+    PUBLIC --> VERIFIER_RUST
+    CIRCUIT --> VERIFIER_RUST
+    VERIFIER_RUST --> VERIFIER_OUT

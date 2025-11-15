@@ -1,0 +1,36 @@
+graph TD
+    MOD[Modular Arithmetic]
+    POLY[Polynomial Operations]
+    SEAL[SEAL Library]
+    LWE[LWE Commitment]
+    FS[Fiat-Shamir]
+    SPARSE[Sparse Matrix]
+    R1CS[R1CS System]
+    LAGRANGE[Lagrange Interpolation]
+    QUOTIENT[Quotient Polynomial]
+    PROVER[prove_r1cs]
+    VERIFIER[verify_r1cs]
+    NTT[NTT FFT]
+    ZK[Zero-Knowledge]
+    PROVER_ZK[prove_r1cs_zk]
+    VERIFIER_ZK[verify_r1cs_zk]
+    
+    MOD --> POLY
+    POLY --> LAGRANGE
+    POLY --> NTT
+    POLY --> QUOTIENT
+    SEAL --> LWE
+    LWE --> PROVER
+    LWE --> PROVER_ZK
+    FS --> PROVER
+    FS --> PROVER_ZK
+    SPARSE --> R1CS
+    R1CS --> LAGRANGE
+    R1CS --> NTT
+    LAGRANGE --> QUOTIENT
+    NTT --> QUOTIENT
+    QUOTIENT --> PROVER
+    QUOTIENT --> ZK
+    ZK --> PROVER_ZK
+    PROVER --> VERIFIER
+    PROVER_ZK --> VERIFIER_ZK

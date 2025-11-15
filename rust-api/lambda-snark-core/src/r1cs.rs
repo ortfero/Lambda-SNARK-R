@@ -32,17 +32,24 @@ use std::ptr;
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SparseEntry {
+    /// Row index
     pub row: u32,
+    /// Column index
     pub col: u32,
+    /// Field element value
     pub value: u64,
 }
 
 /// Sparse matrix in COO (Coordinate) format.
 #[repr(C)]
 pub struct SparseMatrix {
+    /// Pointer to entries array
     entries: *mut SparseEntry,
+    /// Number of entries
     n_entries: usize,
+    /// Number of rows
     n_rows: u32,
+    /// Number of columns
     n_cols: u32,
 }
 

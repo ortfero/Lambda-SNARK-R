@@ -1,0 +1,11 @@
+graph TD
+    M1[M1: Foundation] --> M2[M2: LWE Context]
+    M1 --> M3[M3: Sparse Matrices]
+    M2 --> M4[M4: R1CS Subsystem]
+    M3 --> M4
+    M4 --> M5.1[M5.1: FFT/NTT]
+    M4 --> M5.2[M5.2: Zero-Knowledge]
+    M4 --> M6[M6: Documentation]
+    M5.1 --> M7[M7: Final Testing]
+    M5.2 --> M7
+    M6 --> M7
