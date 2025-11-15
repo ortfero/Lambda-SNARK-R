@@ -12,6 +12,7 @@
 #include "lambda_snark/commitment.h"
 #include <algorithm>
 #include <cstring>
+#include <cstdio>
 #include <memory>
 
 // Conditional SEAL inclusion
@@ -137,14 +138,8 @@ LweCommitment* lwe_commit(
     std::copy_n(message, msg_len, comm->data);
     return comm;
 #endif
-} catch (const std::invalid_argument& e) {
-    fprintf(stderr, "lwe_commit error (invalid_argument): %s\n", e.what());
-    return nullptr;
-} catch (const std::logic_error& e) {
-    fprintf(stderr, "lwe_commit error (logic_error): %s\n", e.what());
-    return nullptr;
 } catch (const std::exception& e) {
-    fprintf(stderr, "lwe_commit error (exception): %s\n", e.what());
+    fprintf(stderr, "lwe_commit error: %s\n", e.what());
     return nullptr;
 } catch (...) {
     fprintf(stderr, "lwe_commit error: unknown exception\n");

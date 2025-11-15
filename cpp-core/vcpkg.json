@@ -6,24 +6,7 @@
   "dependencies": [
     {
       "name": "seal",
-      "version>=": "4.1.0",
-      "features": ["no-throw-tran"]
-    },
-    {
-      "name": "ntl",
-      "version>=": "11.5.0"
-    },
-    {
-      "name": "gmp",
-      "version>=": "6.2.0"
-    },
-    {
-      "name": "eigen3",
-      "version>=": "3.4.0"
-    },
-    {
-      "name": "libsodium",
-      "version>=": "1.0.18"
+      "version>=": "4.1.2"
     },
     {
       "name": "gtest",
@@ -34,5 +17,5 @@
       "version>=": "1.8.0"
     }
   ],
-  "builtin-baseline": "2024.01.12"
+  "builtin-baseline": "0804e3b55b7e435c593707071052363fa876f170"
 }

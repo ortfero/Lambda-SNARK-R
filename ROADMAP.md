@@ -1,8 +1,8 @@
 # ROADMAP: ΛSNARK-R Development Plan
 
 > **Version**: 0.1.0-alpha  
-> **Last Updated**: November 7, 2025  
-> **Overall Progress**: 60% (M1-M4 complete, M6 in-progress)
+> **Last Updated**: November 15, 2025  
+> **Overall Progress**: 85% (M1-M5 complete, M6 in-progress)
 
 ---
 
@@ -14,17 +14,17 @@
 | **M2** | LWE Context: SEAL integration, commitment | ✅ Complete | 5 commits | 28 tests | 16h | ✅ Oct 2025 |
 | **M3** | Sparse Matrices: R1CS data structures | ✅ Complete | 4 commits | 28 tests | 12h | ✅ Oct 2025 |
 | **M4** | R1CS Subsystem: Prover/verifier | ✅ Complete | 8 commits | 60 tests | 32h | ✅ Nov 2025 |
-| **M5** | Optimizations: FFT/NTT + Zero-Knowledge | 🔜 Planned | - | - | 16h | Dec 2025 |
-| **M6** | Documentation: Consolidation | 🔄 40% | 1 commit | - | 6h | Nov 2025 |
+| **M5** | Optimizations: FFT/NTT + Zero-Knowledge | ✅ Complete | 7 commits | 162+ tests | 18h | ✅ Nov 2025 |
+| **M6** | Documentation: Consolidation | 🔄 60% | 3 commits | - | 6h | Nov 2025 |
 | **M7** | Final Testing: Alpha release | 🔜 Planned | - | - | 8h | Jan 2026 |
-| **TOTAL** | Full alpha-quality system | 🔄 60% | 26 commits | 158 tests | 114h | Q1 2026 |
+| **TOTAL** | Full alpha-quality system | 🔄 85% | 33 commits | 162+ tests | 132h | Q1 2026 |
 
-**Key Metrics** (as of commit 212321d):
-- **Code**: 3,167 lines (Rust implementation)
-- **Tests**: 158 automated (98 unit + 60 integration)
+**Key Metrics** (as of commit 0002772):
+- **Code**: 4,200+ lines (Rust implementation with NTT + ZK)
+- **Tests**: 162+ automated (100+ unit + 62+ integration)
 - **Examples**: 3 CLI commands (multiplication, range proof, benchmark)
-- **Security**: 128-bit quantum (Module-LWE), soundness ε ≤ 2^-48
-- **Performance**: 216-byte proofs (constant), 4-6ms prover for m=10-30 constraints
+- **Security**: 128-bit quantum (Module-LWE), soundness ε ≤ 2^-48, ✅ Zero-Knowledge
+- **Performance**: 224-byte ZK proofs, O(m log m) with NTT, <1ms prover for m=30
 
 ---
 

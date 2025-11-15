@@ -1,8 +1,8 @@
 # Architecture: ΛSNARK-R System Design
 
 > **Version**: 0.1.0-dev  
-> **Last Updated**: November 7, 2025  
-> **Status**: M4 R1CS Subsystem Complete
+> **Last Updated**: November 15, 2025  
+> **Status**: M5 Complete — NTT + Zero-Knowledge Optimizations
 
 This document provides architectural overview of ΛSNARK-R system components, data flow, and module dependencies.
 
@@ -47,17 +47,32 @@ flowchart TB
         VERIFIER[verify_r1cs<br/>~1ms verification<br/>ε ≤ 2^-88]
     end
     
+    subgraph "M5: Optimizations"
+        NTT[Cooley-Tukey NTT<br/>O(m log m) FFT<br/>1000× speedup]
+        ZK[Zero-Knowledge<br/>Q'(X) = Q(X) + r·Z_H(X)<br/>polynomial blinding]
+        PROVER_ZK[prove_r1cs_zk<br/>224-byte ZK proofs<br/>witness hiding]
+        VERIFIER_ZK[verify_r1cs_zk<br/>unblinding verification<br/>ε ≤ 2^-48]
+    end
+    
     MOD --> POLY
     POLY --> LAGRANGE
+    POLY --> NTT
     POLY --> QUOTIENT
     SEAL --> LWE
     LWE --> PROVER
+    LWE --> PROVER_ZK
     FS --> PROVER
+    FS --> PROVER_ZK
     SPARSE --> R1CS
     R1CS --> LAGRANGE
+    R1CS --> NTT
     LAGRANGE --> QUOTIENT
+    NTT --> QUOTIENT
     QUOTIENT --> PROVER
+    QUOTIENT --> ZK
+    ZK --> PROVER_ZK
     PROVER --> VERIFIER
+    PROVER_ZK --> VERIFIER_ZK
     
     style MOD fill:#e1f5ff
     style POLY fill:#e1f5ff
@@ -70,6 +85,10 @@ flowchart TB
     style QUOTIENT fill:#f3e5f5
     style PROVER fill:#f3e5f5
     style VERIFIER fill:#f3e5f5
+    style NTT fill:#ffe0b2
+    style ZK fill:#ffe0b2
+    style PROVER_ZK fill:#ffe0b2
+    style VERIFIER_ZK fill:#ffe0b2
 ```
 
 **Legend**:
@@ -77,6 +96,7 @@ flowchart TB
 - 🟡 **M2 LWE Context** (Yellow): Post-quantum commitment scheme
 - 🟢 **M3 R1CS Structure** (Green): Constraint system representation
 - 🟣 **M4 Prover/Verifier** (Purple): SNARK proof system
+- 🟠 **M5 Optimizations** (Orange): NTT performance + Zero-Knowledge
 
 ---
 

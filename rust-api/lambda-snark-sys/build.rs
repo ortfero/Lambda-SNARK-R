@@ -16,13 +16,24 @@ fn main() {
     println!("cargo:rustc-link-search=native={}/lib64", dst.display());
     println!("cargo:rustc-link-lib=static=lambda_snark_core");
     
-    // Link SEAL (from vcpkg) - use absolute path
-    let vcpkg_lib = PathBuf::from("../../vcpkg/installed/x64-linux/lib")
-        .canonicalize()
-        .expect("Failed to find vcpkg lib directory");
-    println!("cargo:rustc-link-search=native={}", vcpkg_lib.display());
-    println!("cargo:rustc-link-lib=static=seal-4.1");
-    println!("cargo:rustc-link-lib=static=zstd");
+    // Link SEAL (from vcpkg) - check environment variable or default location
+    let vcpkg_root = env::var("VCPKG_ROOT")
+        .unwrap_or_else(|_| {
+            // Try common locations
+            if PathBuf::from("/home/kirill/vcpkg").exists() {
+                "/home/kirill/vcpkg".to_string()
+            } else {
+                "../../vcpkg".to_string()
+            }
+        });
+    let vcpkg_lib = PathBuf::from(format!("{}/installed/x64-linux/lib", vcpkg_root));
+    if vcpkg_lib.exists() {
+        println!("cargo:rustc-link-search=native={}", vcpkg_lib.display());
+        println!("cargo:rustc-link-lib=static=seal-4.1");
+        println!("cargo:rustc-link-lib=static=zstd");
+    } else {
+        eprintln!("Warning: vcpkg SEAL library not found at {}, using system libraries only", vcpkg_lib.display());
+    }
     println!("cargo:rustc-link-lib=dylib=z");  // system zlib
     println!("cargo:rustc-link-lib=dylib=ntl");  // system NTL
     println!("cargo:rustc-link-lib=dylib=gmp");  // system GMP (NTL dependency)
