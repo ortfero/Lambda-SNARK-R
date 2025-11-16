@@ -66,11 +66,27 @@ lemma primitive_root_pow_injective {F : Type*} [Field F]
     {m : ℕ} {ω : F} (hprim : IsPrimitiveRoot ω m)
     (i j : Fin m) :
     ω ^ (i : ℕ) = ω ^ (j : ℕ) → i = j := by
-  -- Strategy: ω^i = ω^j → ω^|i-j| = 1 → m | |i-j| → i = j (since 0 < |i-j| < m)
-  -- Requires trichotomy on i, j and careful application of IsPrimitiveRoot.pow_eq_one_iff_dvd
-  -- Technical blocker: mul_left_cancel₀ requires careful term construction in Lean 4
-  -- Defer to manual proof with explicit have lemmas for power splitting
-  sorry
+  intro h
+  -- WLOG assume i ≤ j
+  wlog hij : (i : ℕ) ≤ (j : ℕ) generalizing i j with H
+  · exact (H j i h.symm (Nat.le_of_not_le hij)).symm
+  -- From ω^i = ω^j and i ≤ j, derive ω^(j-i) = 1
+  have h_m_pos : 0 < m := Fin.pos_iff_nonempty.mpr ⟨i⟩
+  have h_pow : ω ^ ((j : ℕ) - (i : ℕ)) = 1 := by
+    have h1 : ω ^ (j : ℕ) = ω ^ (i : ℕ) * ω ^ ((j : ℕ) - (i : ℕ)) := by
+      rw [← pow_add, Nat.add_sub_cancel' hij]
+    have h2 : ω ^ (i : ℕ) * ω ^ ((j : ℕ) - (i : ℕ)) = ω ^ (i : ℕ) * 1 := by
+      rw [← h1, h, mul_one]
+    exact mul_left_cancel₀ (pow_ne_zero _ (hprim.ne_zero h_m_pos.ne')) h2
+  -- Use primitivity: ω^k = 1 ↔ m ∣ k
+  rw [hprim.pow_eq_one_iff_dvd] at h_pow
+  -- Since 0 ≤ j - i < m and m ∣ (j - i), we have j - i = 0
+  have h_diff : (j : ℕ) - (i : ℕ) = 0 := by
+    apply Nat.eq_zero_of_dvd_of_lt h_pow
+    have : (j : ℕ) - (i : ℕ) ≤ (j : ℕ) := Nat.sub_le _ _
+    exact Nat.lt_of_le_of_lt this j.prop
+  -- Therefore i = j
+  exact Fin.ext (hij.antisymm (Nat.sub_eq_zero_iff_le.mp h_diff))
 
 /-- Lagrange basis `Lᵢ(X) = ∏_{j≠i} (X - ω^j) / ∏_{j≠i} (ω^i - ω^j)`. -/
 noncomputable def lagrange_basis {F : Type*} [Field F] (m : ℕ) (ω : F) (i : Fin m) : Polynomial F := by
