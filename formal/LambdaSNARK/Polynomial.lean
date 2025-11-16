@@ -164,9 +164,18 @@ theorem polynomial_division {F : Type*} [Field F]
     · by_cases h : f % g = 0
       · exact Or.inl h
       · right
-        sorry -- TODO: Apply degree_modByMonic_lt with proper monic condition
+        -- Field: every nonzero polynomial has monic associate
+        -- Use: for fields, mod behaves like modByMonic
+        have := EuclideanDomain.mod_eq_sub_mul_div f g
+        -- Strategy: degree(f % g) < degree(g) from Euclidean property
+        sorry -- TODO: Extract natDegree bound from Euclidean mod property
   · intro ⟨q', r'⟩ ⟨hq, hdeg⟩
-    sorry -- TODO: Euclidean domain uniqueness argument
+    -- Uniqueness: from f = q₁·g + r₁ = q₂·g + r₂ with deg(rᵢ) < deg(g)
+    -- Show (q₁ - q₂)·g = r₂ - r₁, then use degree bounds
+    have h_div := EuclideanDomain.div_add_mod f g
+    -- Strategy: Euclidean uniqueness is standard but requires careful Lean 4 term manipulation
+    -- Defer to manual proof with explicit degree contradiction
+    sorry -- TODO: Show q' = f/g and r' = f%g via degree argument
 
 /-- Divide a polynomial by the vanishing polynomial. -/
 noncomputable def divide_by_vanishing {F : Type*} [Field F]
