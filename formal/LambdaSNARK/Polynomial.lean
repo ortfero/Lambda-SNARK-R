@@ -220,10 +220,9 @@ theorem polynomial_division {F : Type*} [Field F]
         apply Polynomial.natDegree_mod_lt
         -- Requires: g.natDegree ≠ 0
         intro hg_deg
-        -- Edge case: g.natDegree = 0 ∧ g ≠ 0 → g is unit → f % g = 0
-        -- Proof strategy: isUnit_iff + EuclideanDomain.mod_eq_zero_iff_dvd
-        -- Deferred: requires isUnit_of_degree_eq_zero (not trivially available)
-        sorry -- TODO (M3): prove unit divisor case (5 lines, non-critical)
+        -- Edge case: g.natDegree = 0 ∧ g ≠ 0 → g unit → contradicts h : f % g ≠ 0
+        -- Proof: degree ≤ 0 + g ≠ 0 → degree = 0 → isUnit → dvd all → mod = 0
+        sorry -- TODO: degree_pos_of_ne_zero + mod_eq_zero_of_dvd (5 lines, exact API names)
   · -- P4 (Uniqueness): via subtraction + degree contradiction
     intro ⟨q', r'⟩ ⟨hq, hdeg⟩
     -- Pattern: (q' - f/g) * g = (f%g) - r'
