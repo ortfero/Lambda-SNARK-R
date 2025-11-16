@@ -180,9 +180,12 @@ structure Proof (F : Type) [CommRing F] (VC : VectorCommitment F) where
   opening_Bz_β : VC.Opening
   opening_Cz_α : VC.Opening
 
-  -- Quotient polynomial commitment
+  -- Quotient polynomial commitment and opening
   comm_quotient : VC.Commitment
   opening_quotient_α : VC.Opening
+
+  -- Quotient polynomial itself (for extraction)
+  quotient_poly : Polynomial F
 
 /-- Verifier's decision predicate -/
 def verify {F : Type} [CommRing F] [DecidableEq F]
@@ -195,6 +198,16 @@ def verify {F : Type} [CommRing F] [DecidableEq F]
   -- 3. Public input consistency: first l elements match x
   -- For now, return true (optimistic verifier for type checking)
   true
+
+/-- Predicate: verification passes and quotient polynomial is correct -/
+def verify_with_quotient {F : Type} [Field F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (x : PublicInput F cs.nPub) (π : Proof F VC)
+    (m : ℕ) (ω : F) (hω : IsPrimitiveRoot ω m) (h_m : m = cs.nCons) : Prop :=
+  verify VC cs x π = true ∧
+  -- Quotient polynomial opening is valid at challenge α
+  (∃ pp, VC.verify pp π.comm_quotient π.challenge_α
+    (π.quotient_poly.eval π.challenge_α) π.opening_quotient_α = true)
 
 /-- Placeholder for Module-LWE hardness assumption -/
 axiom ModuleLWE_Hard (n k : ℕ) (q : ℕ) (σ : ℝ) : Prop

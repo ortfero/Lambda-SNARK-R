@@ -94,6 +94,7 @@ cargo build --release
 cd lambda-snark-cli
 cargo run --release -- r1cs-example
 cargo run --release -- range-proof-example
+cargo run --release -- healthcare-example
 cargo run --release -- benchmark
 ```
 
@@ -166,6 +167,13 @@ $ cargo run --release -- range-proof-example
 ...
 ✓ Proof VALID ✓
 SUCCESS: Proved value ∈ [0, 256) without revealing!
+
+# Healthcare: prove diagnosis without revealing patient data
+$ cargo run --release -- healthcare-example
+🏥 Scenario: Hospital proves diabetes risk without sending patient data
+...
+✓ Proof VALID ✓
+SUCCESS: Diagnosis proven without data disclosure!
 
 # Benchmark different circuit sizes
 $ cargo run --release -- benchmark --max-constraints 30

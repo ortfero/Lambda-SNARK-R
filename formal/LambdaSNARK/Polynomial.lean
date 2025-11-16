@@ -217,19 +217,13 @@ theorem polynomial_division {F : Type*} [Field F]
       · exact Or.inl h
       · -- Remainder bound via Polynomial.natDegree_mod_lt (FieldDivision.lean:413)
         right
-        apply Polynomial.natDegree_mod_lt
-        -- Requires: g.natDegree ≠ 0
-        intro hg_deg
-        -- Edge case: g.natDegree = 0 ∧ g ≠ 0 → g unit → contradicts h : f % g ≠ 0
-        -- Proof: degree ≤ 0 + g ≠ 0 → degree = 0 → isUnit → dvd all → mod = 0
-        sorry -- TODO: degree_pos_of_ne_zero + mod_eq_zero_of_dvd (5 lines, exact API names)
+        -- Need: g.natDegree ≠ 0 (otherwise g is unit → f % g = 0)
+        sorry -- TODO: Show g.natDegree ≠ 0 via unit characterization (5 lines)
   · -- P4 (Uniqueness): via subtraction + degree contradiction
     intro ⟨q', r'⟩ ⟨hq, hdeg⟩
-    -- Pattern: (q' - f/g) * g = (f%g) - r'
-    -- If q' ≠ f/g: deg(LHS) ≥ deg(g) contradicts deg(RHS) < deg(g)
-    -- Proof strategy: degree_mul + degree_sub_le + omega
-    -- Deferred: requires careful WithBot handling and natDegree lemmas
-    sorry -- TODO (M3): prove uniqueness via degree bounds (15 lines, non-critical)
+    -- Strategy: If q' ≠ f/g, then (q' - f/g)*g = (f%g) - r' has
+    -- deg(LHS) ≥ deg(g) but deg(RHS) < deg(g) → contradiction
+    sorry -- TODO: Case split q' = f/g; else derive degree contradiction (~15 lines)
 
 /-- Divide a polynomial by the vanishing polynomial. -/
 noncomputable def divide_by_vanishing {F : Type*} [Field F]
