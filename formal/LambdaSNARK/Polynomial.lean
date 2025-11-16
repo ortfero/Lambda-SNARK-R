@@ -140,7 +140,10 @@ theorem lagrange_interpolate_eval {F : Type*} [Field F]
   classical
   unfold lagrange_interpolate
   simp only [eval_finset_sum, eval_mul, eval_C, lagrange_basis_property m hprim]
-  sorry  -- TODO: Apply Finset.sum_ite_eq' (proven in P2 milestone)
+  -- Goal: ∑ j, evals j * (if j = i then 1 else 0) = evals i
+  -- Strategy: rewrite evals j * ite to ite (evals j) 0, then apply Finset.sum_ite_eq
+  sorry  -- TODO: simp [mul_ite, mul_one, mul_zero, Finset.sum_ite_eq, Finset.mem_univ]
+         -- Technical issue: simp doesn't apply sum_ite_eq with correct argument order
 
 -- ============================================================================
 -- Polynomial Division
