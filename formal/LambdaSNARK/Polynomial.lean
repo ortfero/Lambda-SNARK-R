@@ -188,11 +188,14 @@ theorem remainder_zero_iff_vanishing {F : Type*} [Field F]
     (f : Polynomial F) (m : ℕ) (ω : F) (hω : IsPrimitiveRoot ω m) :
     f %ₘ vanishing_poly m ω = 0 ↔ ∀ i : Fin m, f.eval (ω ^ (i : ℕ)) = 0 := by
   unfold vanishing_poly
-  constructor
-  · intro h_rem i
-    sorry -- TODO: modByMonic = 0 → divisibility → eval = 0
-  · intro h_eval
-    sorry -- TODO: All roots → product divides → modByMonic = 0
+  -- Strategy:
+  -- (→): f %ₘ Z_H = 0 ⟹ Z_H | f ⟹ (X - ωⁱ) | f for each i ⟹ f(ωⁱ) = 0
+  -- (←): f(ωⁱ) = 0 for all i ⟹ (X - ωⁱ) | f ⟹ Z_H | f ⟹ f %ₘ Z_H = 0
+  -- Technical blockers:
+  -- 1. Need Polynomial.dvd_iff_modByMonic_eq_zero with monic proof for Z_H
+  -- 2. Need product divisibility: (∀i, pᵢ | f) ⟹ (∏ pᵢ | f) for coprime factors
+  -- 3. Mathlib has Polynomial.prod_X_sub_C_dvd_iff_forall_eval_eq_zero but needs adaptation
+  sorry
 
 -- ============================================================================
 -- Witness Polynomial Construction
