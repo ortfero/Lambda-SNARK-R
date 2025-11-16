@@ -158,10 +158,10 @@ theorem polynomial_division {F : Type*} [Field F]
     · simpa [mul_comm] using (EuclideanDomain.div_add_mod f g).symm
     · by_cases h : f % g = 0
       · exact Or.inl h
-      · sorry  -- TODO: Correct Polynomial.degree_modByMonic_lt lemma
+      · right
+        sorry -- TODO: Apply degree_modByMonic_lt with proper monic condition
   · intro ⟨q', r'⟩ ⟨hq, hdeg⟩
-    -- Uniqueness from Euclidean domain structure
-    sorry  -- TODO: Use EuclideanDomain.quotient_remainder_unique or manual degree argument
+    sorry -- TODO: Euclidean domain uniqueness argument
 
 /-- Divide a polynomial by the vanishing polynomial. -/
 noncomputable def divide_by_vanishing {F : Type*} [Field F]
@@ -171,22 +171,14 @@ noncomputable def divide_by_vanishing {F : Type*} [Field F]
 
 /-- Remainder is zero iff `f` vanishes on roots of `Z_H`. -/
 theorem remainder_zero_iff_vanishing {F : Type*} [Field F]
-    (f : Polynomial F) (m : ℕ) (ω : F) :
-    let (_, r) := divide_by_vanishing f m ω
-    r = 0 ↔ ∀ i : Fin m, f.eval (ω ^ (i : ℕ)) = 0 := by
-  unfold divide_by_vanishing vanishing_poly
-  simp
+    (f : Polynomial F) (m : ℕ) (ω : F) (hω : IsPrimitiveRoot ω m) :
+    f %ₘ vanishing_poly m ω = 0 ↔ ∀ i : Fin m, f.eval (ω ^ (i : ℕ)) = 0 := by
+  unfold vanishing_poly
   constructor
   · intro h_rem i
-    -- If f %ₘ Z_H = 0, then Z_H ∣ f (by modByMonic_eq_zero_iff_dvd)
-    -- So f = q * Z_H, and f(ωⁱ) = q(ωⁱ) * ∏ⱼ(ωⁱ - ωʲ)
-    -- The product contains factor (ωⁱ - ωⁱ) = 0
-    sorry  -- TODO: Show Z_H(ωⁱ) = 0 using product evaluation
+    sorry -- TODO: modByMonic = 0 → divisibility → eval = 0
   · intro h_eval
-    -- If f(ωⁱ) = 0 for all i, then (X - ωⁱ) ∣ f for each i
-    -- Since factors are coprime, ∏ᵢ (X - ωⁱ) ∣ f, i.e., Z_H ∣ f
-    -- By modByMonic_eq_zero_iff_dvd, f %ₘ Z_H = 0
-    sorry  -- TODO: Use coprimality and product of linear factors divides f
+    sorry -- TODO: All roots → product divides → modByMonic = 0
 
 -- ============================================================================
 -- Witness Polynomial Construction
