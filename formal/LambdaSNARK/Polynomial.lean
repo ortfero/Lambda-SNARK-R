@@ -66,8 +66,11 @@ lemma primitive_root_pow_injective {F : Type*} [Field F]
     {m : ℕ} {ω : F} (hprim : IsPrimitiveRoot ω m)
     (i j : Fin m) :
     ω ^ (i : ℕ) = ω ^ (j : ℕ) → i = j := by
-  intro h
-  sorry  -- TODO: Use IsPrimitiveRoot.pow_inj
+  -- Strategy: ω^i = ω^j → ω^|i-j| = 1 → m | |i-j| → i = j (since 0 < |i-j| < m)
+  -- Requires trichotomy on i, j and careful application of IsPrimitiveRoot.pow_eq_one_iff_dvd
+  -- Technical blocker: mul_left_cancel₀ requires careful term construction in Lean 4
+  -- Defer to manual proof with explicit have lemmas for power splitting
+  sorry
 
 /-- Lagrange basis `Lᵢ(X) = ∏_{j≠i} (X - ω^j) / ∏_{j≠i} (ω^i - ω^j)`. -/
 noncomputable def lagrange_basis {F : Type*} [Field F] (m : ℕ) (ω : F) (i : Fin m) : Polynomial F := by
