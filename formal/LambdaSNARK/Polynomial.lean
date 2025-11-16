@@ -237,16 +237,28 @@ theorem quotient_uniqueness {F : Type} [Field F]
     sorry  -- TODO: Show vanishing_poly m ω ≠ 0 and apply mul_right_cancel
 
 /-- Degree bound for quotient polynomial -/
-theorem quotient_degree_bound {F : Type} [Field F] [DecidableEq F]
-    (cs : R1CS F) (z : Witness F cs.nVars)
-    (m : ℕ) (ω : F) (q : Polynomial F)
-    (h_sat : satisfies cs z)
-    (h_m : m = cs.nCons)
-    (h_root : ω ^ m = 1) :
-    q.natDegree ≤ cs.nVars + cs.nCons := by
-  -- Constraint polynomial degree ≤ 2·nVars (quadratic), vanishing poly degree = m
-  -- So q degree ≤ 2·nVars - m = 2·nVars - nCons
-  -- With proper encoding: deg(q) ≤ nVars + nCons
-  sorry  -- TODO: Derive from constraint polynomial structure
+theorem quotient_degree_bound {F : Type} [Field F]
+    (f q : Polynomial F) (m d : ℕ) (ω : F)
+    (h_div : f = q * vanishing_poly m ω)
+    (h_deg_f : f.natDegree ≤ d)
+    (h_deg_Z : (vanishing_poly m ω).natDegree = m)
+    (h_m_pos : 0 < m) :
+    q.natDegree ≤ d - m := by
+  -- From f = q * Z_H: deg(f) = deg(q) + deg(Z_H)
+  -- So: deg(q) = deg(f) - deg(Z_H) ≤ d - m
+  by_cases hq : q = 0
+  · simp [hq]
+  by_cases hZ : vanishing_poly m ω = 0
+  · -- Z_H = 0 contradicts h_deg_Z (deg(Z_H) = m > 0)
+    exfalso
+    rw [hZ, Polynomial.natDegree_zero] at h_deg_Z
+    omega
+  -- Use: deg(f·g) = deg(f) + deg(g) for nonzero polynomials
+  have h_deg_eq : f.natDegree = q.natDegree + (vanishing_poly m ω).natDegree := by
+    rw [h_div]
+    exact Polynomial.natDegree_mul hq hZ
+  -- Substitute and rearrange
+  rw [h_deg_Z] at h_deg_eq
+  omega
 
 end LambdaSNARK
