@@ -147,7 +147,7 @@ theorem lagrange_interpolate_eval {F : Type*} [Field F]
   -- Transform to: ∑ j, (if j = i then evals j else 0) = evals i
   simp only [mul_ite, mul_one, mul_zero]
   -- Rewrite j = i to i = j for Finset.sum_ite_eq
-  have h_eq : ∑ j : Fin m, (if j = i then evals j else 0) = 
+  have h_eq : ∑ j : Fin m, (if j = i then evals j else 0) =
               ∑ j : Fin m, (if i = j then evals j else 0) := by
     congr 1; ext j
     by_cases h : j = i
