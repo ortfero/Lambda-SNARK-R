@@ -56,31 +56,31 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(missing_docs, rust_2018_idioms)]
 
-pub use lambda_snark_core::{Field, Params, Profile, SecurityLevel, Witness};
 pub use lambda_snark_core::Error as CoreError;
+pub use lambda_snark_core::{Field, Params, Profile, SecurityLevel, Witness};
 
+mod challenge;
+pub mod circuit;
 mod commitment;
 mod context;
-mod polynomial;
-mod challenge;
-mod opening;
-pub mod sparse_matrix;
-pub mod r1cs;
-pub mod circuit;
+pub mod lean_export; // M10 prototype: VK → Lean term export
+pub mod lean_params;
 mod ntt;
-pub mod lean_export;   // M10 prototype: VK → Lean term export
-pub mod lean_params;   // M10 prototype: Lean params → Rust validation
+mod opening;
+mod polynomial;
+pub mod r1cs;
+pub mod sparse_matrix; // M10 prototype: Lean params → Rust validation
 
+pub use challenge::Challenge;
+pub use circuit::CircuitBuilder;
 pub use commitment::Commitment;
 pub use context::LweContext;
-pub use polynomial::Polynomial;
-pub use challenge::Challenge;
-pub use opening::{Opening, generate_opening, verify_opening, verify_opening_with_context};
-pub use sparse_matrix::SparseMatrix;
-pub use r1cs::R1CS;
-pub use circuit::CircuitBuilder;
 pub use lean_export::{LeanExportable, VerificationKey};
-pub use lean_params::{SecurityParams, validate_params};
+pub use lean_params::{validate_params, SecurityParams};
+pub use opening::{generate_opening, verify_opening, verify_opening_with_context, Opening};
+pub use polynomial::Polynomial;
+pub use r1cs::R1CS;
+pub use sparse_matrix::SparseMatrix;
 
 use thiserror::Error as ThisError;
 
@@ -90,19 +90,19 @@ pub enum Error {
     /// Core error.
     #[error(transparent)]
     Core(#[from] CoreError),
-    
+
     /// FFI error.
     #[error("FFI call failed: {0}")]
     Ffi(String),
-    
+
     /// Invalid proof.
     #[error("Invalid proof")]
     InvalidProof,
-    
+
     /// Invalid dimensions (e.g., NTT modular inverse failure).
     #[error("Invalid dimensions or parameters")]
     InvalidDimensions,
-    
+
     /// Invalid input (e.g., Lean parameter parsing, validation failures).
     #[error("Invalid input: {0}")]
     InvalidInput(String),
@@ -137,40 +137,40 @@ pub struct VerifyingKey {
 pub struct ProofR1CS {
     /// LWE commitment to quotient polynomial Q(X)
     pub commitment_q: Commitment,
-    
+
     /// First challenge α
     pub challenge_alpha: Challenge,
-    
+
     /// Second challenge β
     pub challenge_beta: Challenge,
-    
+
     /// Q(α) evaluation
     pub q_alpha: u64,
-    
+
     /// Q(β) evaluation
     pub q_beta: u64,
-    
+
     /// A_z(α) evaluation (left constraint polynomial at α)
     pub a_z_alpha: u64,
-    
+
     /// B_z(α) evaluation (right constraint polynomial at α)
     pub b_z_alpha: u64,
-    
+
     /// C_z(α) evaluation (output constraint polynomial at α)
     pub c_z_alpha: u64,
-    
+
     /// A_z(β) evaluation (left constraint polynomial at β)
     pub a_z_beta: u64,
-    
+
     /// B_z(β) evaluation (right constraint polynomial at β)
     pub b_z_beta: u64,
-    
+
     /// C_z(β) evaluation (output constraint polynomial at β)
     pub c_z_beta: u64,
-    
+
     /// Opening proof at α
     pub opening_alpha: Opening,
-    
+
     /// Opening proof at β
     pub opening_beta: Opening,
 }
@@ -209,17 +209,17 @@ impl ProofR1CS {
             opening_beta,
         }
     }
-    
+
     /// Get commitment to Q(X).
     pub fn commitment_q(&self) -> &Commitment {
         &self.commitment_q
     }
-    
+
     /// Get first challenge α.
     pub fn challenge_alpha(&self) -> &Challenge {
         &self.challenge_alpha
     }
-    
+
     /// Get second challenge β.
     pub fn challenge_beta(&self) -> &Challenge {
         &self.challenge_beta
@@ -243,43 +243,43 @@ impl ProofR1CS {
 pub struct ProofR1csZk {
     /// LWE commitment to blinded quotient polynomial Q'(X) = Q(X) + r·Z_H(X)
     pub commitment_q_prime: Commitment,
-    
+
     /// Blinding factor r (revealed in proof)
     pub blinding_factor: u64,
-    
+
     /// First challenge α
     pub challenge_alpha: Challenge,
-    
+
     /// Second challenge β
     pub challenge_beta: Challenge,
-    
+
     /// Q'(α) evaluation (blinded quotient at α)
     pub q_prime_alpha: u64,
-    
+
     /// Q'(β) evaluation (blinded quotient at β)
     pub q_prime_beta: u64,
-    
+
     /// A_z(α) evaluation (left constraint polynomial at α)
     pub a_z_alpha: u64,
-    
+
     /// B_z(α) evaluation (right constraint polynomial at α)
     pub b_z_alpha: u64,
-    
+
     /// C_z(α) evaluation (output constraint polynomial at α)
     pub c_z_alpha: u64,
-    
+
     /// A_z(β) evaluation (left constraint polynomial at β)
     pub a_z_beta: u64,
-    
+
     /// B_z(β) evaluation (right constraint polynomial at β)
     pub b_z_beta: u64,
-    
+
     /// C_z(β) evaluation (output constraint polynomial at β)
     pub c_z_beta: u64,
-    
+
     /// Opening proof at α
     pub opening_alpha: Opening,
-    
+
     /// Opening proof at β
     pub opening_beta: Opening,
 }
@@ -320,22 +320,22 @@ impl ProofR1csZk {
             opening_beta,
         }
     }
-    
+
     /// Get commitment to Q'(X).
     pub fn commitment_q_prime(&self) -> &Commitment {
         &self.commitment_q_prime
     }
-    
+
     /// Get blinding factor r.
     pub fn blinding_factor(&self) -> u64 {
         self.blinding_factor
     }
-    
+
     /// Get first challenge α.
     pub fn challenge_alpha(&self) -> &Challenge {
         &self.challenge_alpha
     }
-    
+
     /// Get second challenge β.
     pub fn challenge_beta(&self) -> &Challenge {
         &self.challenge_beta
@@ -347,10 +347,10 @@ impl ProofR1csZk {
 pub struct Proof {
     /// LWE commitment to witness polynomial
     pub commitment: Commitment,
-    
+
     /// Fiat-Shamir challenge point α
     pub challenge: Challenge,
-    
+
     /// Opening proof at α
     pub opening: Opening,
 }
@@ -364,17 +364,17 @@ impl Proof {
             opening,
         }
     }
-    
+
     /// Get commitment.
     pub fn commitment(&self) -> &Commitment {
         &self.commitment
     }
-    
+
     /// Get challenge.
     pub fn challenge(&self) -> &Challenge {
         &self.challenge
     }
-    
+
     /// Get opening.
     pub fn opening(&self) -> &Opening {
         &self.opening
@@ -388,13 +388,10 @@ impl Proof {
 /// Returns error if parameters are invalid or FFI fails.
 pub fn setup(params: Params) -> Result<(ProvingKey, VerifyingKey), Error> {
     params.validate()?;
-    
+
     let ctx = LweContext::new(params)?;
-    
-    Ok((
-        ProvingKey { ctx },
-        VerifyingKey {},
-    ))
+
+    Ok((ProvingKey { ctx }, VerifyingKey {}))
 }
 
 /// Generate proof for witness (non-zero-knowledge version).
@@ -453,19 +450,19 @@ pub fn prove_simple(
     if witness.is_empty() {
         return Err(Error::Ffi("Witness cannot be empty".to_string()));
     }
-    
+
     // 2. Encode witness as polynomial
     let polynomial = Polynomial::from_witness(witness, modulus);
-    
+
     // 3. Commit to polynomial
     let commitment = Commitment::new(ctx, polynomial.coefficients(), seed)?;
-    
+
     // 4. Derive Fiat-Shamir challenge
     let challenge = Challenge::derive(public_inputs, &commitment, modulus);
-    
+
     // 5. Generate opening proof
     let opening = generate_opening(&polynomial, challenge.alpha(), seed);
-    
+
     // 6. Assemble proof
     Ok(Proof::new(commitment, challenge, opening))
 }
@@ -540,26 +537,26 @@ pub fn prove_zk(
     if witness.is_empty() {
         return Err(Error::Ffi("Witness cannot be empty".to_string()));
     }
-    
+
     // 2. Encode witness as polynomial
     let f = Polynomial::from_witness(witness, modulus);
-    
+
     // 3. Generate random blinding polynomial with same degree
     let r = Polynomial::random_blinding(f.degree(), modulus, blinding_seed);
-    
+
     // 4. Compute blinded polynomial f'(X) = f(X) + r(X)
     let f_blinded = f.add(&r);
-    
+
     // 5. Commit to blinded polynomial
     let commitment = Commitment::new(ctx, f_blinded.coefficients(), commit_seed)?;
-    
+
     // 6. Derive Fiat-Shamir challenge
     let challenge = Challenge::derive(public_inputs, &commitment, modulus);
-    
+
     // 7. Compute blinded evaluation y' = f'(α) = f(α) + r(α)
     // (Opening generation handles evaluation internally)
     let opening = generate_opening(&f_blinded, challenge.alpha(), commit_seed);
-    
+
     // 8. Assemble proof
     Ok(Proof::new(commitment, challenge, opening))
 }
@@ -645,16 +642,16 @@ pub fn simulate_proof(
     // 1. Sample random polynomial f'(X) uniformly from F_q^{n+1}
     // This simulates the distribution of f(X) + r(X) without knowing f(X)
     let f_prime = Polynomial::random_blinding(degree, modulus, sim_seed);
-    
+
     // 2. Commit to random polynomial
     let commitment = Commitment::new(ctx, f_prime.coefficients(), commit_seed)?;
-    
+
     // 3. Derive Fiat-Shamir challenge (same as real prover)
     let challenge = Challenge::derive(public_inputs, &commitment, modulus);
-    
+
     // 4. Evaluate random polynomial at challenge point
     let opening = generate_opening(&f_prime, challenge.alpha(), commit_seed);
-    
+
     // 5. Return simulated proof
     // This proof is indistinguishable from a real ZK proof under LWE assumption
     Ok(Proof::new(commitment, challenge, opening))
@@ -732,44 +729,44 @@ pub fn prove_r1cs(
 ) -> Result<ProofR1CS, Error> {
     // 1. Compute quotient polynomial Q(X)
     let q_coeffs = r1cs.compute_quotient_poly(witness)?;
-    
+
     // 2. Commit to Q(X)
     let q_fields: Vec<Field> = q_coeffs.iter().map(|&v| Field::new(v)).collect();
     let commitment_q = Commitment::new(ctx, &q_fields, seed)?;
-    
+
     // 3. Derive first challenge α from public inputs and commitment
     let public_inputs = r1cs.public_inputs(witness);
     let challenge_alpha = Challenge::derive(&public_inputs, &commitment_q, r1cs.modulus);
     let alpha = challenge_alpha.alpha();
-    
+
     // 4. Derive second challenge β from α and commitment
     let challenge_beta = Challenge::derive(&[alpha.value()], &commitment_q, r1cs.modulus);
     let beta = challenge_beta.alpha();
-    
+
     // 5. Interpolate A_z(X), B_z(X), C_z(X) from constraint evaluations
     let (a_evals, b_evals, c_evals) = r1cs.compute_constraint_evals(witness);
     let a_poly = r1cs::lagrange_interpolate(&a_evals, r1cs.modulus);
     let b_poly = r1cs::lagrange_interpolate(&b_evals, r1cs.modulus);
     let c_poly = r1cs::lagrange_interpolate(&c_evals, r1cs.modulus);
-    
+
     // 6. Evaluate polynomials at α
     let q_alpha = r1cs.eval_poly(&q_coeffs, alpha.value());
     let a_z_alpha = r1cs.eval_poly(&a_poly, alpha.value());
     let b_z_alpha = r1cs.eval_poly(&b_poly, alpha.value());
     let c_z_alpha = r1cs.eval_poly(&c_poly, alpha.value());
-    
+
     // 7. Evaluate polynomials at β
     let q_beta = r1cs.eval_poly(&q_coeffs, beta.value());
     let a_z_beta = r1cs.eval_poly(&a_poly, beta.value());
     let b_z_beta = r1cs.eval_poly(&b_poly, beta.value());
     let c_z_beta = r1cs.eval_poly(&c_poly, beta.value());
-    
+
     // 8. Generate opening proofs at α and β
     // For now, use simplified openings (witness = empty vector)
     // TODO: Implement proper opening proof generation with LWE witness
     let opening_alpha = Opening::new(Field::new(q_alpha), vec![]);
     let opening_beta = Opening::new(Field::new(q_beta), vec![]);
-    
+
     // 9. Assemble proof
     Ok(ProofR1CS::new(
         commitment_q,
@@ -862,61 +859,61 @@ pub fn prove_r1cs_zk(
     seed: u64,
 ) -> Result<ProofR1csZk, Error> {
     use r1cs::{poly_add, poly_mul_scalar, vanishing_poly};
-    
+
     // 1. Compute quotient polynomial Q(X)
     let q_coeffs = r1cs.compute_quotient_poly(witness)?;
-    
+
     // 2. Sample random blinding factor r ← F_q
     let blinding_factor = rng.next_u64() % r1cs.modulus;
-    
+
     // 3. Compute vanishing polynomial Z_H(X) with domain-aware method
     //    NTT: Z_H(X) = X^m - 1  |  Baseline: Z_H(X) = X(X-1)...(X-(m-1))
     let use_ntt = r1cs.should_use_ntt();
     let z_h = vanishing_poly(r1cs.m, r1cs.modulus, use_ntt);
-    
+
     // 4. Compute r·Z_H(X)
     let r_z_h = poly_mul_scalar(&z_h, blinding_factor, r1cs.modulus);
-    
+
     // 5. Compute blinded quotient Q'(X) = Q(X) + r·Z_H(X)
     let q_blinded = poly_add(&q_coeffs, &r_z_h, r1cs.modulus);
-    
+
     // 6. Commit to Q'(X)
     let q_prime_fields: Vec<Field> = q_blinded.iter().map(|&v| Field::new(v)).collect();
     let commitment_q_prime = Commitment::new(ctx, &q_prime_fields, seed)?;
-    
+
     // 7. Derive first challenge α from public inputs and commitment
     let public_inputs = r1cs.public_inputs(witness);
     let challenge_alpha = Challenge::derive(&public_inputs, &commitment_q_prime, r1cs.modulus);
     let alpha = challenge_alpha.alpha();
-    
+
     // 8. Derive second challenge β from α and commitment
     let challenge_beta = Challenge::derive(&[alpha.value()], &commitment_q_prime, r1cs.modulus);
     let beta = challenge_beta.alpha();
-    
+
     // 9. Interpolate A_z(X), B_z(X), C_z(X)
     let (a_evals, b_evals, c_evals) = r1cs.compute_constraint_evals(witness);
     let a_poly = r1cs::lagrange_interpolate(&a_evals, r1cs.modulus);
     let b_poly = r1cs::lagrange_interpolate(&b_evals, r1cs.modulus);
     let c_poly = r1cs::lagrange_interpolate(&c_evals, r1cs.modulus);
-    
+
     // 10. Evaluate blinded quotient Q'(α) and Q'(β)
     let q_prime_alpha = r1cs.eval_poly(&q_blinded, alpha.value());
     let q_prime_beta = r1cs.eval_poly(&q_blinded, beta.value());
-    
+
     // 11. Evaluate constraint polynomials at α
     let a_z_alpha = r1cs.eval_poly(&a_poly, alpha.value());
     let b_z_alpha = r1cs.eval_poly(&b_poly, alpha.value());
     let c_z_alpha = r1cs.eval_poly(&c_poly, alpha.value());
-    
+
     // 12. Evaluate constraint polynomials at β
     let a_z_beta = r1cs.eval_poly(&a_poly, beta.value());
     let b_z_beta = r1cs.eval_poly(&b_poly, beta.value());
     let c_z_beta = r1cs.eval_poly(&c_poly, beta.value());
-    
+
     // 13. Generate opening proofs at α and β
     let opening_alpha = Opening::new(Field::new(q_prime_alpha), vec![]);
     let opening_beta = Opening::new(Field::new(q_prime_beta), vec![]);
-    
+
     // 14. Assemble ZK proof
     Ok(ProofR1csZk::new(
         commitment_q_prime,
@@ -993,89 +990,78 @@ pub fn prove_r1cs_zk(
 /// # Ok(())
 /// # }
 /// ```
-pub fn verify_r1cs(
-    proof: &ProofR1CS,
-    public_inputs: &[u64],
-    r1cs: &R1CS,
-) -> bool {
+pub fn verify_r1cs(proof: &ProofR1CS, public_inputs: &[u64], r1cs: &R1CS) -> bool {
     let modulus = r1cs.modulus;
-    
+
     // 1. Recompute first challenge α' = H(public || comm_Q)
-    let challenge_alpha_recomputed = Challenge::derive(
-        public_inputs,
-        proof.commitment_q(),
-        modulus,
-    );
-    
+    let challenge_alpha_recomputed =
+        Challenge::derive(public_inputs, proof.commitment_q(), modulus);
+
     // 2. Check α' = α (challenge consistency)
     if proof.challenge_alpha.alpha() != challenge_alpha_recomputed.alpha() {
         return false;
     }
-    
+
     let alpha = proof.challenge_alpha.alpha().value();
-    
+
     // 3. Recompute second challenge β' = H(α || comm_Q)
-    let challenge_beta_recomputed = Challenge::derive(
-        &[alpha],
-        proof.commitment_q(),
-        modulus,
-    );
-    
+    let challenge_beta_recomputed = Challenge::derive(&[alpha], proof.commitment_q(), modulus);
+
     // 4. Check β' = β (challenge consistency)
     if proof.challenge_beta.alpha() != challenge_beta_recomputed.alpha() {
         return false;
     }
-    
+
     let beta = proof.challenge_beta.alpha().value();
-    
+
     // 5. Compute Z_H(α) using domain-aware method
     // Domain depends on interpolation method (NTT vs baseline)
     let zh_alpha = r1cs.eval_vanishing(alpha);
-    
+
     // 6. Compute Z_H(β)
     let zh_beta = r1cs.eval_vanishing(beta);
-    
+
     // 7. Verify first equation: Q(α)·Z_H(α) = A_z(α)·B_z(α) - C_z(α)
     let lhs_alpha = ((proof.q_alpha as u128 * zh_alpha as u128) % modulus as u128) as u64;
-    
+
     let ab_alpha = ((proof.a_z_alpha as u128 * proof.b_z_alpha as u128) % modulus as u128) as u64;
     let rhs_alpha = if ab_alpha >= proof.c_z_alpha {
         ab_alpha - proof.c_z_alpha
     } else {
         modulus - (proof.c_z_alpha - ab_alpha)
     };
-    
+
     if lhs_alpha != rhs_alpha {
         return false;
     }
-    
+
     // 8. Verify second equation: Q(β)·Z_H(β) = A_z(β)·B_z(β) - C_z(β)
     let lhs_beta = ((proof.q_beta as u128 * zh_beta as u128) % modulus as u128) as u64;
-    
+
     let ab_beta = ((proof.a_z_beta as u128 * proof.b_z_beta as u128) % modulus as u128) as u64;
     let rhs_beta = if ab_beta >= proof.c_z_beta {
         ab_beta - proof.c_z_beta
     } else {
         modulus - (proof.c_z_beta - ab_beta)
     };
-    
+
     if lhs_beta != rhs_beta {
         return false;
     }
-    
+
     // 9. Verify opening proofs at α and β
     // Note: Opening verification is simplified for now
     // TODO: Implement full LWE opening verification when LWE witness is available
-    
+
     // Check that opening evaluations match claimed values
     if proof.opening_alpha.evaluation().value() != proof.q_alpha {
         return false;
     }
-    
+
     if proof.opening_beta.evaluation().value() != proof.q_beta {
         return false;
     }
-    
+
     // All checks passed
     true
 }
@@ -1138,47 +1124,37 @@ pub fn verify_r1cs(
 /// # Ok(())
 /// # }
 /// ```
-pub fn verify_r1cs_zk(
-    proof: &ProofR1csZk,
-    public_inputs: &[u64],
-    r1cs: &R1CS,
-) -> bool {
+pub fn verify_r1cs_zk(proof: &ProofR1csZk, public_inputs: &[u64], r1cs: &R1CS) -> bool {
     let modulus = r1cs.modulus;
-    
+
     // 1. Recompute first challenge α' = H(public || comm_Q')
-    let challenge_alpha_recomputed = Challenge::derive(
-        public_inputs,
-        proof.commitment_q_prime(),
-        modulus,
-    );
-    
+    let challenge_alpha_recomputed =
+        Challenge::derive(public_inputs, proof.commitment_q_prime(), modulus);
+
     // 2. Check α' = α (challenge consistency)
     if proof.challenge_alpha.alpha() != challenge_alpha_recomputed.alpha() {
         return false;
     }
-    
+
     let alpha = proof.challenge_alpha.alpha().value();
-    
+
     // 3. Recompute second challenge β' = H(α || comm_Q')
-    let challenge_beta_recomputed = Challenge::derive(
-        &[alpha],
-        proof.commitment_q_prime(),
-        modulus,
-    );
-    
+    let challenge_beta_recomputed =
+        Challenge::derive(&[alpha], proof.commitment_q_prime(), modulus);
+
     // 4. Check β' = β (challenge consistency)
     if proof.challenge_beta.alpha() != challenge_beta_recomputed.alpha() {
         return false;
     }
-    
+
     let beta = proof.challenge_beta.alpha().value();
-    
+
     // 5. Compute Z_H(α) using domain-aware method
     let zh_alpha = r1cs.eval_vanishing(alpha);
-    
+
     // 6. Compute Z_H(β)
     let zh_beta = r1cs.eval_vanishing(beta);
-    
+
     // 7. Unblind Q'(α) → Q(α) using r·Z_H(α)
     let r_zh_alpha = ((proof.blinding_factor as u128 * zh_alpha as u128) % modulus as u128) as u64;
     let q_alpha = if proof.q_prime_alpha >= r_zh_alpha {
@@ -1186,7 +1162,7 @@ pub fn verify_r1cs_zk(
     } else {
         modulus - (r_zh_alpha - proof.q_prime_alpha)
     };
-    
+
     // 8. Unblind Q'(β) → Q(β) using r·Z_H(β)
     let r_zh_beta = ((proof.blinding_factor as u128 * zh_beta as u128) % modulus as u128) as u64;
     let q_beta = if proof.q_prime_beta >= r_zh_beta {
@@ -1194,45 +1170,45 @@ pub fn verify_r1cs_zk(
     } else {
         modulus - (r_zh_beta - proof.q_prime_beta)
     };
-    
+
     // 9. Verify first equation: Q(α)·Z_H(α) = A_z(α)·B_z(α) - C_z(α)
     let lhs_alpha = ((q_alpha as u128 * zh_alpha as u128) % modulus as u128) as u64;
-    
+
     let ab_alpha = ((proof.a_z_alpha as u128 * proof.b_z_alpha as u128) % modulus as u128) as u64;
     let rhs_alpha = if ab_alpha >= proof.c_z_alpha {
         ab_alpha - proof.c_z_alpha
     } else {
         modulus - (proof.c_z_alpha - ab_alpha)
     };
-    
+
     if lhs_alpha != rhs_alpha {
         return false;
     }
-    
+
     // 10. Verify second equation: Q(β)·Z_H(β) = A_z(β)·B_z(β) - C_z(β)
     let lhs_beta = ((q_beta as u128 * zh_beta as u128) % modulus as u128) as u64;
-    
+
     let ab_beta = ((proof.a_z_beta as u128 * proof.b_z_beta as u128) % modulus as u128) as u64;
     let rhs_beta = if ab_beta >= proof.c_z_beta {
         ab_beta - proof.c_z_beta
     } else {
         modulus - (proof.c_z_beta - ab_beta)
     };
-    
+
     if lhs_beta != rhs_beta {
         return false;
     }
-    
+
     // 11. Verify opening proofs at α and β
     // Check that opening evaluations match claimed blinded values
     if proof.opening_alpha.evaluation().value() != proof.q_prime_alpha {
         return false;
     }
-    
+
     if proof.opening_beta.evaluation().value() != proof.q_prime_beta {
         return false;
     }
-    
+
     // All checks passed
     true
 }
@@ -1248,7 +1224,9 @@ pub fn prove(
     _witness: &[Field],
 ) -> Result<Proof, Error> {
     // TODO: Implement full R1CS prover
-    Err(Error::Ffi("R1CS prover not implemented yet, use prove_simple()".to_string()))
+    Err(Error::Ffi(
+        "R1CS prover not implemented yet, use prove_simple()".to_string(),
+    ))
 }
 
 /// Verify SNARK proof (simple version).
@@ -1292,19 +1270,15 @@ pub fn prove(
 /// # Ok(())
 /// # }
 /// ```
-pub fn verify_simple(
-    proof: &Proof,
-    public_inputs: &[u64],
-    modulus: u64,
-) -> bool {
+pub fn verify_simple(proof: &Proof, public_inputs: &[u64], modulus: u64) -> bool {
     // 1. Recompute Fiat-Shamir challenge
     let challenge_recomputed = Challenge::derive(public_inputs, &proof.commitment, modulus);
-    
+
     // 2. Check challenge consistency
     if proof.challenge.alpha() != challenge_recomputed.alpha() {
         return false;
     }
-    
+
     // 3. Verify opening proof
     verify_opening(
         &proof.commitment,
@@ -1319,31 +1293,29 @@ pub fn verify_simple(
 /// # Errors
 ///
 /// Returns error if verification fails or proof is malformed.
-pub fn verify(
-    _vk: &VerifyingKey,
-    _public_input: &[Field],
-    _proof: &Proof,
-) -> Result<bool, Error> {
+pub fn verify(_vk: &VerifyingKey, _public_input: &[Field], _proof: &Proof) -> Result<bool, Error> {
     // TODO: Implement full R1CS verifier
-    Err(Error::Ffi("R1CS verifier not implemented yet, use verify_simple()".to_string()))
+    Err(Error::Ffi(
+        "R1CS verifier not implemented yet, use verify_simple()".to_string(),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_setup() {
         let params = Params::new(
             SecurityLevel::Bits128,
             Profile::RingB {
-                n: 4096,  // SEAL requires n >= 1024
+                n: 4096, // SEAL requires n >= 1024
                 k: 2,
-                q: 17592186044417,  // 2^44 + 1 (prime, > 2^24)
+                q: 17592186044417, // 2^44 + 1 (prime, > 2^24)
                 sigma: 3.19,
             },
         );
-        
+
         let result = setup(params);
         assert!(result.is_ok());
     }

@@ -7,14 +7,19 @@
 //! # Example
 //!
 //! ```no_run
-//! use lambda_snark::r1cs::R1CS;
-//! use lambda_snark::lean_export::LeanExportable;
+//! use lambda_snark::{LeanExportable, VerificationKey, R1CS, SparseMatrix};
 //!
-//! let r1cs = /* ... */;
-//! let vk = VerificationKey::from_r1cs(&r1cs);
-//! let lean_term = vk.to_lean_term();
-//! println!("{}", lean_term);
-//! // Output: ⟨4096, 12289, SparseMatrix.mk [...]⟩
+//! fn main() {
+//!     // Simple 1×3 R1CS: witness [1, x, y], constraint x * y = 1
+//!     let a = SparseMatrix::from_dense(&vec![vec![0, 1, 0]]);
+//!     let b = SparseMatrix::from_dense(&vec![vec![0, 0, 1]]);
+//!     let c = SparseMatrix::from_dense(&vec![vec![1, 0, 0]]);
+//!
+//!     let r1cs = R1CS::new(1, 3, 1, a, b, c, 12289);
+//!     let vk = VerificationKey::from_r1cs(&r1cs);
+//!     let lean_term = vk.to_lean_term();
+//!     println!("{}", lean_term);
+//! }
 //! ```
 //!
 //! # Milestone
@@ -41,22 +46,22 @@ pub trait LeanExportable {
 pub struct VerificationKey {
     /// Number of constraints (m)
     pub num_constraints: usize,
-    
+
     /// Total witness size (n)
     pub num_vars: usize,
-    
+
     /// Number of public inputs (l)
     pub num_public_inputs: usize,
-    
+
     /// Field modulus q
     pub modulus: u64,
-    
+
     /// Constraint matrix A (sparse)
     pub a_matrix: SparseMatrix,
-    
+
     /// Constraint matrix B (sparse)
     pub b_matrix: SparseMatrix,
-    
+
     /// Constraint matrix C (sparse)
     pub c_matrix: SparseMatrix,
 }
@@ -83,7 +88,7 @@ impl LeanExportable for SparseMatrix {
     fn to_lean_term(&self) -> String {
         let mut entries = String::new();
         let mut first = true;
-        
+
         for row in 0..self.rows() {
             for col in 0..self.cols() {
                 let val = self.get(row, col);
@@ -96,7 +101,7 @@ impl LeanExportable for SparseMatrix {
                 }
             }
         }
-        
+
         format!(
             "SparseMatrix.mk {} {} [{}]",
             self.rows(),
@@ -120,7 +125,7 @@ impl LeanExportable for VerificationKey {
         let a_term = self.a_matrix.to_lean_term();
         let b_term = self.b_matrix.to_lean_term();
         let c_term = self.c_matrix.to_lean_term();
-        
+
         format!(
             "⟨{}, {}, {}, {},\n  {},\n  {},\n  {}⟩",
             self.num_constraints,
@@ -134,21 +139,32 @@ impl LeanExportable for VerificationKey {
     }
 }
 
+impl LeanExportable for R1CS {
+    /// Export the entire R1CS instance as a Lean verification-key term.
+    ///
+    /// This is a convenience wrapper around `VerificationKey::from_r1cs`
+    /// allowing direct serialization of constraint systems produced on the
+    /// Rust side.
+    fn to_lean_term(&self) -> String {
+        VerificationKey::from_r1cs(self).to_lean_term()
+    }
+}
+
 /// Security parameters for export to Lean.
 #[derive(Debug, Clone)]
 pub struct SecurityParams {
     /// LWE dimension (n)
     pub n: usize,
-    
+
     /// Module rank (k)
     pub k: usize,
-    
+
     /// Field modulus (q)
     pub q: u64,
-    
+
     /// Gaussian width (σ)
     pub sigma: f64,
-    
+
     /// Security level (λ in bits)
     pub lambda: usize,
 }
@@ -184,51 +200,62 @@ impl LeanExportable for SecurityParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_sparse_matrix_export() {
         // Matrix:
         // [0, 42, 0]
         // [0, 0, 99]
-        let rows = vec![
-            vec![0, 42, 0],
-            vec![0, 0, 99],
-        ];
+        let rows = vec![vec![0, 42, 0], vec![0, 0, 99]];
         let matrix = SparseMatrix::from_dense(&rows);
-        
+
         let lean_term = matrix.to_lean_term();
         assert!(lean_term.contains("SparseMatrix.mk"));
         assert!(lean_term.contains("2 3"));
         assert!(lean_term.contains("(0, 1, 42)"));
         assert!(lean_term.contains("(1, 2, 99)"));
     }
-    
+
     #[test]
     fn test_security_params_export() {
         let params = SecurityParams::default_128bit();
         let lean_term = params.to_lean_term();
-        
+
         assert!(lean_term.contains("n := 4096"));
         assert!(lean_term.contains("q := 12289"));
         assert!(lean_term.contains("λ := 128"));
     }
-    
+
     #[test]
     fn test_vk_export_format() {
         // Simple 1×2 R1CS: witness [1, x], constraint x * 1 = 1
         let a = SparseMatrix::from_dense(&vec![vec![0, 1]]); // A[0,1] = 1
         let b = SparseMatrix::from_dense(&vec![vec![1, 0]]); // B[0,0] = 1
         let c = SparseMatrix::from_dense(&vec![vec![1, 0]]); // C[0,0] = 1
-        
+
         let r1cs = R1CS::new(1, 2, 1, a, b, c, 12289);
         let vk = VerificationKey::from_r1cs(&r1cs);
-        
+
         let lean_term = vk.to_lean_term();
-        
+
         // Validate structure
         assert!(lean_term.starts_with("⟨"));
         assert!(lean_term.ends_with("⟩"));
         assert!(lean_term.contains("12289")); // modulus
+        assert!(lean_term.contains("SparseMatrix.mk"));
+    }
+
+    #[test]
+    fn test_r1cs_export_via_trait() {
+        let a = SparseMatrix::from_dense(&vec![vec![0, 1]]);
+        let b = SparseMatrix::from_dense(&vec![vec![1, 0]]);
+        let c = SparseMatrix::from_dense(&vec![vec![1, 0]]);
+
+        let r1cs = R1CS::new(1, 2, 1, a, b, c, 12289);
+        let lean_term = r1cs.to_lean_term();
+
+        assert!(lean_term.starts_with("⟨"));
+        assert!(lean_term.contains("2")); // number of vars
         assert!(lean_term.contains("SparseMatrix.mk"));
     }
 }

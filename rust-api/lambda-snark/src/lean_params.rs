@@ -30,16 +30,16 @@ use crate::Error;
 pub struct SecurityParams {
     /// LWE dimension (n)
     pub n: usize,
-    
+
     /// Module rank (k)
     pub k: usize,
-    
+
     /// Field modulus (q)
     pub q: u64,
-    
+
     /// Gaussian width (σ)
     pub sigma: f64,
-    
+
     /// Security level (λ in bits)
     pub lambda: usize,
 }
@@ -54,44 +54,69 @@ impl SecurityParams {
     pub fn from_lean(lean_str: &str) -> Result<Self, Error> {
         // Simple parser for Lean record syntax
         let trimmed = lean_str.trim();
-        
+
         if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
             return Err(Error::InvalidInput(
-                "Lean params must be in record syntax { ... }".to_string()
+                "Lean params must be in record syntax { ... }".to_string(),
             ));
         }
-        
-        let content = &trimmed[1..trimmed.len()-1];
+
+        let content = &trimmed[1..trimmed.len() - 1];
         let mut n = None;
         let mut k = None;
         let mut q = None;
         let mut sigma = None;
         let mut lambda = None;
-        
+
         for field in content.split(',') {
             let parts: Vec<&str> = field.split(":=").collect();
             if parts.len() != 2 {
                 continue;
             }
-            
+
             let key = parts[0].trim();
             let value = parts[1].trim();
-            
+
             match key {
-                "n" => n = Some(value.parse().map_err(|_| 
-                    Error::InvalidInput(format!("Invalid n: {}", value)))?),
-                "k" => k = Some(value.parse().map_err(|_| 
-                    Error::InvalidInput(format!("Invalid k: {}", value)))?),
-                "q" => q = Some(value.parse().map_err(|_| 
-                    Error::InvalidInput(format!("Invalid q: {}", value)))?),
-                "σ" | "sigma" => sigma = Some(value.parse().map_err(|_| 
-                    Error::InvalidInput(format!("Invalid σ: {}", value)))?),
-                "λ" | "lambda" => lambda = Some(value.parse().map_err(|_| 
-                    Error::InvalidInput(format!("Invalid λ: {}", value)))?),
+                "n" => {
+                    n = Some(
+                        value
+                            .parse()
+                            .map_err(|_| Error::InvalidInput(format!("Invalid n: {}", value)))?,
+                    )
+                }
+                "k" => {
+                    k = Some(
+                        value
+                            .parse()
+                            .map_err(|_| Error::InvalidInput(format!("Invalid k: {}", value)))?,
+                    )
+                }
+                "q" => {
+                    q = Some(
+                        value
+                            .parse()
+                            .map_err(|_| Error::InvalidInput(format!("Invalid q: {}", value)))?,
+                    )
+                }
+                "σ" | "sigma" => {
+                    sigma = Some(
+                        value
+                            .parse()
+                            .map_err(|_| Error::InvalidInput(format!("Invalid σ: {}", value)))?,
+                    )
+                }
+                "λ" | "lambda" => {
+                    lambda = Some(
+                        value
+                            .parse()
+                            .map_err(|_| Error::InvalidInput(format!("Invalid λ: {}", value)))?,
+                    )
+                }
                 _ => {} // Ignore unknown fields
             }
         }
-        
+
         Ok(Self {
             n: n.ok_or_else(|| Error::InvalidInput("Missing field: n".to_string()))?,
             k: k.ok_or_else(|| Error::InvalidInput("Missing field: k".to_string()))?,
@@ -117,7 +142,7 @@ pub fn validate_params(params: &SecurityParams) -> Result<(), Error> {
             params.q
         )));
     }
-    
+
     // Check 2: n is power of 2 (required for NTT)
     if !params.n.is_power_of_two() {
         return Err(Error::InvalidInput(format!(
@@ -125,7 +150,7 @@ pub fn validate_params(params: &SecurityParams) -> Result<(), Error> {
             params.n
         )));
     }
-    
+
     // Check 3: Gaussian width (security requirement)
     if params.sigma < 3.0 {
         return Err(Error::InvalidInput(format!(
@@ -133,7 +158,7 @@ pub fn validate_params(params: &SecurityParams) -> Result<(), Error> {
             params.sigma
         )));
     }
-    
+
     // Check 4: Security level
     if ![128, 192, 256].contains(&params.lambda) {
         return Err(Error::InvalidInput(format!(
@@ -141,7 +166,7 @@ pub fn validate_params(params: &SecurityParams) -> Result<(), Error> {
             params.lambda
         )));
     }
-    
+
     Ok(())
 }
 
@@ -158,10 +183,10 @@ fn is_prime(n: u64) -> bool {
     if n % 2 == 0 {
         return false;
     }
-    
+
     // Miller-Rabin with deterministic witnesses for u64
     let witnesses = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
-    
+
     // Write n-1 as 2^r * d
     let mut d = n - 1;
     let mut r = 0;
@@ -169,28 +194,28 @@ fn is_prime(n: u64) -> bool {
         d /= 2;
         r += 1;
     }
-    
+
     'witness: for &a in &witnesses {
         if a >= n {
             continue;
         }
-        
+
         let mut x = mod_pow(a, d, n);
-        
+
         if x == 1 || x == n - 1 {
             continue 'witness;
         }
-        
+
         for _ in 0..r - 1 {
             x = mod_mul(x, x, n);
             if x == n - 1 {
                 continue 'witness;
             }
         }
-        
+
         return false; // Composite
     }
-    
+
     true // Probably prime
 }
 
@@ -198,7 +223,7 @@ fn is_prime(n: u64) -> bool {
 fn mod_pow(mut base: u64, mut exp: u64, m: u64) -> u64 {
     let mut result = 1u64;
     base %= m;
-    
+
     while exp > 0 {
         if exp % 2 == 1 {
             result = mod_mul(result, base, m);
@@ -206,7 +231,7 @@ fn mod_pow(mut base: u64, mut exp: u64, m: u64) -> u64 {
         base = mod_mul(base, base, m);
         exp /= 2;
     }
-    
+
     result
 }
 
@@ -218,19 +243,19 @@ fn mod_mul(a: u64, b: u64, m: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_parse_lean_params() {
         let lean_str = r#"{ n := 4096, k := 2, q := 12289, σ := 3.2, λ := 128 }"#;
         let params = SecurityParams::from_lean(lean_str).unwrap();
-        
+
         assert_eq!(params.n, 4096);
         assert_eq!(params.k, 2);
         assert_eq!(params.q, 12289);
         assert_eq!(params.sigma, 3.2);
         assert_eq!(params.lambda, 128);
     }
-    
+
     #[test]
     fn test_parse_with_whitespace() {
         let lean_str = r#"
@@ -245,7 +270,7 @@ mod tests {
         let params = SecurityParams::from_lean(lean_str).unwrap();
         assert_eq!(params.q, 12289);
     }
-    
+
     #[test]
     fn test_validate_valid_params() {
         let params = SecurityParams {
@@ -255,10 +280,10 @@ mod tests {
             sigma: 3.2,
             lambda: 128,
         };
-        
+
         assert!(validate_params(&params).is_ok());
     }
-    
+
     #[test]
     fn test_validate_non_prime_modulus() {
         let params = SecurityParams {
@@ -268,12 +293,12 @@ mod tests {
             sigma: 3.2,
             lambda: 128,
         };
-        
+
         let result = validate_params(&params);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not prime"));
     }
-    
+
     #[test]
     fn test_validate_non_power_of_two_n() {
         let params = SecurityParams {
@@ -283,12 +308,12 @@ mod tests {
             sigma: 3.2,
             lambda: 128,
         };
-        
+
         let result = validate_params(&params);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("power of 2"));
     }
-    
+
     #[test]
     fn test_validate_small_sigma() {
         let params = SecurityParams {
@@ -298,19 +323,19 @@ mod tests {
             sigma: 2.5, // Too small
             lambda: 128,
         };
-        
+
         let result = validate_params(&params);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("too small"));
     }
-    
+
     #[test]
     fn test_primality() {
         assert!(is_prime(2));
         assert!(is_prime(3));
         assert!(is_prime(12289));
         assert!(is_prime(17592186044423)); // Next prime after VULN-001
-        
+
         assert!(!is_prime(0));
         assert!(!is_prime(1));
         assert!(!is_prime(4));

@@ -8,6 +8,7 @@ import LambdaSNARK.Core
 import LambdaSNARK.Polynomial  -- Import vanishing_poly
 import LambdaSNARK.Constraints
 import LambdaSNARK.ForkingInfrastructure  -- Import forking infrastructure
+import LambdaSNARK.ForkingEquations
 import Mathlib.Probability.ProbabilityMassFunction.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Tactic
@@ -190,7 +191,7 @@ theorem forking_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
   (h_field_size : (Fintype.card F : ℝ) ≥ 2)
   (h_ε_mass : ε * (Fintype.card F : ℝ) ≥ 2)
   (h_sis : ModuleSIS_Hard 256 2 12289 1024)
-  (eq_provider : ForkingEquationsProvider VC cs)
+  (provider : ForkingEquationsProvider VC cs)
   -- Hypothesis: Adversary succeeds with probability ≥ ε
   (h_success : True)  -- TODO: formalize Pr[A produces accepting proof] ≥ ε
   :
@@ -226,18 +227,18 @@ theorem forking_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
   -- Step 5: Apply extraction_soundness
   obtain ⟨t1, t2, h_fork⟩ := h_fork_exists
   let w := ForkingExtractor.witness (VC := VC) (cs := cs)
-      (provider := eq_provider) (x := x)
+      (provider := provider) (x := x)
 
   have h_satisfies : satisfies cs w := by
     simpa [w] using
       ForkingExtractor.witness_satisfies (VC := VC) (cs := cs)
-        (provider := eq_provider) (x := x) h_sis
+        (provider := provider) (x := x) h_sis
 
   -- Step 6: Verify public input match
   have h_pub : extractPublic cs.h_pub_le w = x := by
     simpa [w] using
       ForkingExtractor.witness_public (VC := VC) (cs := cs)
-        (provider := eq_provider) (x := x)
+        (provider := provider) (x := x)
 
   -- Step 7: Combine results
   exact ⟨w, h_satisfies, h_pub, trivial⟩
@@ -270,7 +271,7 @@ theorem knowledge_soundness {F : Type} [Field F] [Fintype F] [DecidableEq F]
   (h_non_negl : NonNegligible ε)
   (h_mass : ε secParam * (Fintype.card F : ℝ) ≥ 2)
   (h_sis : ModuleSIS_Hard 256 2 12289 1024)  -- Module-SIS hardness
-  (eq_provider : ForkingEquationsProvider VC cs)
+  (provider : ForkingEquationsProvider VC cs)
   (h_rom : True)  -- Random Oracle Model (placeholder)
     :
     ∃ (E : Extractor F VC),
@@ -296,7 +297,7 @@ theorem knowledge_soundness {F : Type} [Field F] [Fintype F] [DecidableEq F]
   --    c) Extractor runs in expected poly-time
 
   -- Dependencies (all proven above):
-  -- - forking_lemma: extracts witness from successful adversary
+  -- - forking_lemma: extracts witness from successful adversary using provider witness
   -- - extraction_soundness: extracted witness satisfies R1CS
   -- - Schwartz-Zippel: polynomial evaluation uniqueness
   -- - Module-SIS hardness: commitment binding
@@ -373,7 +374,34 @@ theorem knowledge_soundness {F : Type} [Field F] [Fintype F] [DecidableEq F]
     -- Forking lemma yields witness with matching public input
     obtain ⟨w, h_sat, h_pub, _⟩ :=
       forking_lemma VC cs A x ε_val secParam h_eps_pos h_eps_bound h_field_size h_mass' h_sis
-        eq_provider trivial
+        provider trivial
     exact ⟨w, h_sat, h_pub⟩
+
+end LambdaSNARK
+
+namespace LambdaSNARK
+
+/--
+Convenience wrapper for `knowledge_soundness` when a `ForkingEquationWitness`
+instance is available. The extractor can be instantiated using the provider
+packaged by the witness without passing it explicitly.
+-/
+theorem knowledge_soundness_of {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (secParam : ℕ)
+    (A : Adversary F VC) (ε : ℕ → ℝ)
+    (h_non_negl : NonNegligible ε)
+    (h_mass : ε secParam * (Fintype.card F : ℝ) ≥ 2)
+    (h_sis : ModuleSIS_Hard 256 2 12289 1024)
+    [ForkingEquationWitness VC cs]
+    (h_rom : True) :
+    ∃ (E : Extractor F VC),
+      E.poly_time ∧
+      ∀ (x : PublicInput F cs.nPub),
+        (∃ π, verify VC cs x π = true) →
+        (∃ w : Witness F cs.nVars,
+          satisfies cs w ∧
+          extractPublic cs.h_pub_le w = x) :=
+  knowledge_soundness VC cs secParam A ε h_non_negl h_mass h_sis
+    (ForkingEquationWitness.providerOf (VC := VC) (cs := cs)) h_rom
 
 end LambdaSNARK

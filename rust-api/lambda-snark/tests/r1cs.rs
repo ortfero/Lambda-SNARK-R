@@ -2,7 +2,7 @@
 //!
 //! Tests R1CS constraint system with C++ backend through FFI.
 
-use lambda_snark_core::r1cs::{R1CS, SparseMatrix};
+use lambda_snark_core::r1cs::{SparseMatrix, R1CS};
 
 const TEST_MODULUS: u64 = 17592186044417; // 2^44 + 1
 
@@ -125,7 +125,9 @@ fn test_modular_arithmetic() {
 
     let large_val = TEST_MODULUS - 1;
     // (q-1) × (q-1) = q^2 - 2q + 1 ≡ 1 (mod q)
-    assert!(r1cs.validate_witness(&[1, large_val, large_val, 1]).unwrap());
+    assert!(r1cs
+        .validate_witness(&[1, large_val, large_val, 1])
+        .unwrap());
 }
 
 #[test]

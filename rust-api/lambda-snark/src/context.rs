@@ -1,7 +1,7 @@
 //! LWE context wrapper.
 
+use crate::{CoreError, Error};
 use lambda_snark_core::{Params, Profile};
-use crate::{Error, CoreError};
 use lambda_snark_sys as ffi;
 use std::ptr;
 
@@ -14,7 +14,7 @@ impl LweContext {
     /// Create new LWE context from parameters.
     pub fn new(params: Params) -> Result<Self, Error> {
         params.validate().map_err(Error::Core)?;
-        
+
         // Convert Rust params to C params
         let c_params = ffi::PublicParams {
             profile: match params.profile {
@@ -41,16 +41,16 @@ impl LweContext {
                 Profile::ScalarA { sigma, .. } | Profile::RingB { sigma, .. } => sigma,
             },
         };
-        
+
         let inner = unsafe { ffi::lwe_context_create(&c_params) };
-        
+
         if inner.is_null() {
             return Err(Error::Core(CoreError::FfiError));
         }
-        
+
         Ok(LweContext { inner })
     }
-    
+
     /// Get raw pointer (for FFI calls).
     pub(crate) fn as_ptr(&self) -> *mut ffi::LweContext {
         self.inner
@@ -72,19 +72,19 @@ unsafe impl Send for LweContext {}
 mod tests {
     use super::*;
     use lambda_snark_core::SecurityLevel;
-    
+
     #[test]
     fn test_context_create_and_drop() {
         let params = Params::new(
             SecurityLevel::Bits128,
             Profile::RingB {
-                n: 4096,  // SEAL requires n >= 1024
+                n: 4096, // SEAL requires n >= 1024
                 k: 2,
-                q: 17592186044417,  // 2^44 + 1 (prime, > 2^24)
+                q: 17592186044417, // 2^44 + 1 (prime, > 2^24)
                 sigma: 3.19,
             },
         );
-        
+
         let ctx = LweContext::new(params);
         assert!(ctx.is_ok());
         // Drop happens here

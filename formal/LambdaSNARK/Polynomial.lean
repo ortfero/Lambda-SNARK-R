@@ -8,6 +8,7 @@ import LambdaSNARK.Core
 import Mathlib.Algebra.Polynomial.CoeffList
 import Mathlib.Algebra.Polynomial.Div
 import Mathlib.Algebra.Polynomial.FieldDivision
+import Mathlib.Data.Finset.Card
 import Mathlib.RingTheory.EuclideanDomain
 import Mathlib.RingTheory.Polynomial.Basic
 import Mathlib.RingTheory.RootsOfUnity.Basic
@@ -102,6 +103,10 @@ end CoeffList
 noncomputable def vanishing_poly {F : Type*} [Field F] (m : ℕ) (ω : F) : Polynomial F :=
   ∏ i : Fin m, (X - C (ω ^ (i : ℕ)))
 
+/-- Evaluate the vanishing polynomial at a point `α`. -/
+def vanishingEval {F : Type*} [Field F] (m : ℕ) (ω α : F) : F :=
+  (vanishing_poly m ω).eval α
+
 /-- Helper: Evaluate `(X - C a)` at point `x`. -/
 lemma eval_factor {F : Type*} [Field F] (x a : F) : (X - C a).eval x = x - a := by
   simp [eval_sub, eval_X, eval_C]
@@ -117,6 +122,62 @@ lemma eval_vanishing_at_pow {F : Type*} [Field F]
   conv_lhs => rw [← Polynomial.coe_evalRingHom]; rw [map_prod]
   apply Finset.prod_eq_zero (Finset.mem_univ j)
   simp only [Polynomial.coe_evalRingHom, eval_sub, eval_X, eval_C, sub_self]
+
+/-- The vanishing polynomial is never the zero polynomial. -/
+lemma vanishing_poly_ne_zero {F : Type*} [Field F]
+    (m : ℕ) (ω : F) : vanishing_poly m ω ≠ 0 := by
+  classical
+  unfold vanishing_poly
+  refine Finset.prod_ne_zero_iff.mpr ?_
+  intro i _
+  simpa using (Polynomial.monic_X_sub_C (ω ^ (i : ℕ))).ne_zero
+
+lemma vanishing_poly_monic {F : Type*} [Field F]
+    (m : ℕ) (ω : F) : (vanishing_poly m ω).Monic := by
+  classical
+  unfold vanishing_poly
+  apply monic_prod_of_monic
+  intro i _
+  simpa using Polynomial.monic_X_sub_C (ω ^ (i : ℕ))
+
+/-- Product of linear factors has degree matching the factor count. -/
+lemma natDegree_prod_X_sub_C {F : Type*} [Field F] {α : Type*} [DecidableEq α]
+    (s : Finset α) (f : α → F) :
+    (∏ x ∈ s, (X - C (f x))).natDegree = s.card := by
+  classical
+  refine Finset.induction_on s ?base ?step
+  · simp
+  · intro a s ha ih
+    have h₁ : (X - C (f a)) ≠ 0 := by
+      simpa using (Polynomial.monic_X_sub_C (f a)).ne_zero
+    have h₂ : (∏ x ∈ s, (X - C (f x))) ≠ 0 := by
+      refine Finset.prod_ne_zero_iff.mpr ?_
+      intro x hx
+      simpa using (Polynomial.monic_X_sub_C (f x)).ne_zero
+    have hdeg := Polynomial.natDegree_mul h₁ h₂
+    have hgoal :
+        (∏ x ∈ insert a s, (X - C (f x))).natDegree = s.card + 1 := by
+      simpa [Finset.prod_insert, ha, ih, Polynomial.natDegree_X_sub_C,
+        Nat.add_comm, Nat.add_left_comm, Nat.add_assoc, Nat.succ_eq_add_one] using hdeg
+    have hcard : s.card + 1 = (insert a s).card := by
+      classical
+      simpa using (Finset.card_insert_of_notMem (α := α) (a := a) (s := s) ha).symm
+    exact hgoal.trans hcard
+
+/-- The vanishing polynomial has degree equal to the domain size. -/
+lemma vanishing_poly_natDegree {F : Type*} [Field F]
+    (m : ℕ) (ω : F) : (vanishing_poly m ω).natDegree = m := by
+  classical
+  simpa [vanishing_poly, Finset.card_univ] using
+    natDegree_prod_X_sub_C (Finset.univ : Finset (Fin m))
+      (fun i : Fin m => ω ^ (i : ℕ))
+
+/-- Convenience lemma bundling evaluation of the vanishing polynomial on the domain. -/
+@[simp] lemma vanishingEval_domain {F : Type*} [Field F]
+    (m : ℕ) (ω : F) (j : Fin m) :
+    vanishingEval m ω (ω ^ (j : ℕ)) = 0 := by
+  unfold vanishingEval
+  simpa using eval_vanishing_at_pow m ω j
 
 -- ============================================================================
 -- Lagrange Basis Polynomials
@@ -481,6 +542,289 @@ noncomputable def witness_to_poly {F : Type} [Field F] [DecidableEq (Fin 1)] {n 
   lagrange_interpolate m ω (fun i =>
     if h : i.val < n then w ⟨i.val, h⟩ else 0)
 
+/-- Honest `A_z` polynomial obtained via Lagrange interpolation. -/
+noncomputable def constraintAzPoly {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (ω : F) : Polynomial F :=
+  lagrange_interpolate cs.nCons ω (fun i => evaluateConstraintA cs z i)
+
+/-- Honest `B_z` polynomial obtained via Lagrange interpolation. -/
+noncomputable def constraintBzPoly {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (ω : F) : Polynomial F :=
+  lagrange_interpolate cs.nCons ω (fun i => evaluateConstraintB cs z i)
+
+/-- Honest `C_z` polynomial obtained via Lagrange interpolation. -/
+noncomputable def constraintCzPoly {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (ω : F) : Polynomial F :=
+  lagrange_interpolate cs.nCons ω (fun i => evaluateConstraintC cs z i)
+
+/-- Domain evaluation of the interpolated `A_z` polynomial. -/
+lemma constraintAzPoly_eval_domain {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (i : Fin cs.nCons) :
+    (constraintAzPoly cs z ω).eval (ω ^ (i : ℕ)) = evaluateConstraintA cs z i := by
+  classical
+  unfold constraintAzPoly
+  simpa using
+    (lagrange_interpolate_eval cs.nCons hprim (fun j => evaluateConstraintA cs z j) i)
+
+/-- Domain evaluation of the interpolated `B_z` polynomial. -/
+lemma constraintBzPoly_eval_domain {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (i : Fin cs.nCons) :
+    (constraintBzPoly cs z ω).eval (ω ^ (i : ℕ)) = evaluateConstraintB cs z i := by
+  classical
+  unfold constraintBzPoly
+  simpa using
+    (lagrange_interpolate_eval cs.nCons hprim (fun j => evaluateConstraintB cs z j) i)
+
+/-- Domain evaluation of the interpolated `C_z` polynomial. -/
+lemma constraintCzPoly_eval_domain {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (i : Fin cs.nCons) :
+    (constraintCzPoly cs z ω).eval (ω ^ (i : ℕ)) = evaluateConstraintC cs z i := by
+  classical
+  unfold constraintCzPoly
+  simpa using
+    (lagrange_interpolate_eval cs.nCons hprim (fun j => evaluateConstraintC cs z j) i)
+
+/-- Honest numerator polynomial `A_z ⋅ B_z - C_z`. -/
+noncomputable def constraintNumeratorPoly {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (ω : F) : Polynomial F :=
+  constraintAzPoly cs z ω * constraintBzPoly cs z ω - constraintCzPoly cs z ω
+
+/-- The honest numerator polynomial matches the residual evaluations on the domain. -/
+lemma constraintNumeratorPoly_eval_domain {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (i : Fin cs.nCons) :
+    (constraintNumeratorPoly cs z ω).eval (ω ^ (i : ℕ)) =
+      evaluateConstraintResidual cs z i := by
+  classical
+  have hA := constraintAzPoly_eval_domain (F := F) cs z hprim i
+  have hB := constraintBzPoly_eval_domain (F := F) cs z hprim i
+  have hC := constraintCzPoly_eval_domain (F := F) cs z hprim i
+  unfold constraintNumeratorPoly
+  simp [Polynomial.eval_mul, Polynomial.eval_sub, evaluateConstraintResidual, hA, hB, hC]
+
+/-- Satisfying witnesses force the honest numerator polynomial to vanish on the domain. -/
+lemma constraintNumeratorPoly_eval_domain_of_satisfies
+    {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (hsat : satisfies cs z) (i : Fin cs.nCons) :
+    (constraintNumeratorPoly cs z ω).eval (ω ^ (i : ℕ)) = 0 := by
+  have hres := (satisfies_iff_residual_zero cs z).mp hsat i
+  have hnumer := constraintNumeratorPoly_eval_domain (F := F) cs z hprim i
+  exact hnumer.trans hres
+
+/-- Constraint polynomial values coincide with honest numerator evaluations at domain points. -/
+lemma constraintPoly_eval_domain_eq_constraintNumerator
+    {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (i : Fin cs.nCons) :
+    constraintPoly cs z i =
+      (constraintNumeratorPoly cs z ω).eval (ω ^ (i : ℕ)) := by
+  classical
+  calc
+    constraintPoly cs z i
+        = evaluateConstraintResidual cs z i :=
+          constraintPoly_eq_evaluateResidual (cs := cs) (z := z) i
+    _ = (constraintNumeratorPoly cs z ω).eval (ω ^ (i : ℕ)) := by
+          simpa using
+            (constraintNumeratorPoly_eval_domain (cs := cs) (z := z)
+                (ω := ω) hprim i).symm
+
+/-- If every constraint vanishes, the honest numerator polynomial vanishes on the domain. -/
+lemma constraintNumeratorPoly_eval_domain_of_constraint_zero
+    {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons)
+    (hzero : ∀ i : Fin cs.nCons, constraintPoly cs z i = 0)
+    (i : Fin cs.nCons) :
+    (constraintNumeratorPoly cs z ω).eval (ω ^ (i : ℕ)) = 0 := by
+  have h := constraintPoly_eval_domain_eq_constraintNumerator
+      (cs := cs) (z := z) (ω := ω) hprim i
+  have hi := hzero i
+  simpa [h] using hi
+
+/-- Honest numerator has zero remainder modulo the vanishing polynomial
+    once constraint evaluations vanish on the domain. -/
+lemma constraintNumeratorPoly_mod_vanishing_zero_of_constraint_zero
+    {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons)
+    (hzero : ∀ i : Fin cs.nCons, constraintPoly cs z i = 0) :
+    (constraintNumeratorPoly cs z ω) %ₘ vanishing_poly cs.nCons ω = 0 := by
+  classical
+  refine (remainder_zero_iff_vanishing
+      (f := constraintNumeratorPoly cs z ω)
+      (m := cs.nCons) (ω := ω) hprim).2 ?_
+  intro i
+  simpa using
+    (constraintNumeratorPoly_eval_domain_of_constraint_zero (cs := cs) (z := z)
+      (ω := ω) hprim hzero i)
+
+/-- Constraint residual polynomial obtained via interpolation of per-constraint evaluations. -/
+noncomputable def constraintResidualPoly {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (ω : F) : Polynomial F :=
+  lagrange_interpolate cs.nCons ω (fun i => constraintPoly cs z i)
+
+/-- Evaluation of the constraint residual polynomial across the domain. -/
+lemma constraintResidualPoly_eval_domain {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (i : Fin cs.nCons) :
+    (constraintResidualPoly cs z ω).eval (ω ^ (i : ℕ)) = constraintPoly cs z i := by
+  classical
+  unfold constraintResidualPoly
+  simpa using
+    (lagrange_interpolate_eval cs.nCons hprim (fun i => constraintPoly cs z i) i)
+
+/-- Vanishing of the residual polynomial on the evaluation domain ↔ each constraint vanishes. -/
+lemma constraintResidualPoly_domain_zero_iff {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) :
+    (∀ i : Fin cs.nCons,
+      (constraintResidualPoly cs z ω).eval (ω ^ (i : ℕ)) = 0) ↔
+        ∀ i : Fin cs.nCons, constraintPoly cs z i = 0 := by
+  classical
+  constructor
+  · intro hzero i
+    have hi := hzero i
+    simpa [constraintResidualPoly_eval_domain cs z hprim i] using hi
+  · intro hvals i
+    have hi := hvals i
+    simpa [constraintResidualPoly_eval_domain cs z hprim i] using hi
+
+/-- If every constraint vanishes, the residual polynomial is divisible by the vanishing polynomial. -/
+lemma constraintResidualPoly_mod_vanishing_zero {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons)
+    (hvals : ∀ i : Fin cs.nCons, constraintPoly cs z i = 0) :
+    (constraintResidualPoly cs z ω) %ₘ vanishing_poly cs.nCons ω = 0 := by
+  classical
+  refine (remainder_zero_iff_vanishing _ _ _ hprim).2 ?_
+  intro i
+  have hi := hvals i
+  simpa [constraintResidualPoly_eval_domain cs z hprim i] using hi
+
+/-- Satisfaction of the R1CS system forces the residual polynomial to vanish on the domain. -/
+lemma constraintResidualPoly_domain_zero_iff_satisfies {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) :
+    (∀ i : Fin cs.nCons,
+      (constraintResidualPoly cs z ω).eval (ω ^ (i : ℕ)) = 0) ↔ satisfies cs z := by
+  classical
+  constructor
+  · intro hzero
+    refine (satisfies_iff_constraint_zero cs z).2 ?_
+    intro i
+    have hi := hzero i
+    simpa [constraintResidualPoly_eval_domain cs z hprim i] using hi
+  · intro hsat i
+    have hi := (satisfies_iff_constraint_zero cs z).1 hsat i
+    simpa [constraintResidualPoly_eval_domain cs z hprim i] using hi
+
+/-- Satisfying witnesses make the residual polynomial divisible by the vanishing polynomial. -/
+lemma constraintResidualPoly_mod_vanishing_zero_of_satisfies {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (hsat : satisfies cs z) :
+    (constraintResidualPoly cs z ω) %ₘ vanishing_poly cs.nCons ω = 0 := by
+  refine constraintResidualPoly_mod_vanishing_zero cs z hprim ?_
+  exact (satisfies_iff_constraint_zero cs z).1 hsat
+
+/-- Vanishing remainder of the residual polynomial is equivalent to witness satisfaction. -/
+lemma constraintResidualPoly_mod_vanishing_zero_iff_satisfies {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) :
+    (constraintResidualPoly cs z ω) %ₘ vanishing_poly cs.nCons ω = 0 ↔ satisfies cs z := by
+  classical
+  constructor
+  · intro hrem
+    have hzero := (remainder_zero_iff_vanishing _ _ _ hprim).1 hrem
+    have hconstraints : ∀ i : Fin cs.nCons, constraintPoly cs z i = 0 := by
+      refine (constraintResidualPoly_domain_zero_iff cs z hprim).1 ?_
+      intro i; simpa [constraintResidualPoly_eval_domain cs z hprim i] using hzero i
+    refine (satisfies_iff_constraint_zero cs z).2 ?_
+    exact hconstraints
+  · intro hsat
+    exact constraintResidualPoly_mod_vanishing_zero_of_satisfies cs z hprim hsat
+
+/-- Satisfying witnesses yield a quotient polynomial multiplying the vanishing polynomial. -/
+lemma constraintResidualPoly_factor_of_satisfies {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (hsat : satisfies cs z) :
+    ∃ q : Polynomial F,
+      constraintResidualPoly cs z ω = vanishing_poly cs.nCons ω * q := by
+  classical
+  have hmonic : (vanishing_poly cs.nCons ω).Monic := by
+    unfold vanishing_poly
+    apply monic_prod_of_monic
+    intro i _
+    simpa using (monic_X_sub_C (ω ^ (i : ℕ)))
+  have hzero := constraintResidualPoly_mod_vanishing_zero_of_satisfies cs z hprim hsat
+  have hdiv := (Polynomial.modByMonic_eq_zero_iff_dvd hmonic).1 hzero
+  simpa using hdiv
+
+/-- Factorization of the residual polynomial by the vanishing polynomial implies satisfaction. -/
+lemma constraintResidualPoly_factor_implies_satisfies {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) :
+    (∃ q : Polynomial F,
+      constraintResidualPoly cs z ω = vanishing_poly cs.nCons ω * q) → satisfies cs z := by
+  classical
+  intro hfactor
+  obtain ⟨q, hq⟩ := hfactor
+  have hrem :
+      (constraintResidualPoly cs z ω) %ₘ vanishing_poly cs.nCons ω = 0 := by
+    have hmonic : (vanishing_poly cs.nCons ω).Monic := by
+      unfold vanishing_poly
+      apply monic_prod_of_monic
+      intro i _
+      simpa using (monic_X_sub_C (ω ^ (i : ℕ)))
+    have hdiv : vanishing_poly cs.nCons ω ∣ constraintResidualPoly cs z ω := by
+      refine ⟨q, ?_⟩
+      simpa [mul_comm] using hq
+    exact (Polynomial.modByMonic_eq_zero_iff_dvd hmonic).2 hdiv
+  have :=
+    (constraintResidualPoly_mod_vanishing_zero_iff_satisfies cs z hprim).1 hrem
+  simpa using this
+
+/-- Factorization criterion is equivalent to R1CS satisfaction. -/
+lemma constraintResidualPoly_factor_iff_satisfies {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) :
+    (∃ q : Polynomial F,
+      constraintResidualPoly cs z ω = vanishing_poly cs.nCons ω * q) ↔ satisfies cs z := by
+  constructor
+  · exact constraintResidualPoly_factor_implies_satisfies (cs := cs) (z := z) hprim
+  · intro hsat
+    exact constraintResidualPoly_factor_of_satisfies (cs := cs) (z := z) hprim hsat
+
+/-- Honest witnesses force the residual polynomial to be identically zero. -/
+lemma constraintResidualPoly_eq_zero_of_satisfies {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hsat : satisfies cs z) :
+    constraintResidualPoly cs z ω = 0 := by
+  classical
+  have hconstraints := (satisfies_iff_constraint_zero cs z).1 hsat
+  unfold constraintResidualPoly
+  simp [lagrange_interpolate, hconstraints]
+
+/-- Honest quotient polynomial is definitionally zero once a witness satisfies constraints. -/
+noncomputable def honestConstraintQuotient {F : Type} [Field F] [DecidableEq F]
+  (cs : R1CS F) (z : Witness F cs.nVars) (_hsat : satisfies cs z) : Polynomial F := 0
+
+@[simp] lemma honestConstraintQuotient_eq_zero {F : Type} [Field F] [DecidableEq F]
+  (cs : R1CS F) (z : Witness F cs.nVars) (hsat : satisfies cs z) :
+  honestConstraintQuotient (cs := cs) (z := z) hsat = 0 := rfl
+
+lemma constraintResidualPoly_eq_vanishing_mul_honestQuotient {F : Type} [Field F] [DecidableEq F]
+  (cs : R1CS F) (z : Witness F cs.nVars) (ω : F) (hsat : satisfies cs z) :
+  constraintResidualPoly cs z ω =
+    vanishing_poly cs.nCons ω * honestConstraintQuotient (cs := cs) (z := z) hsat := by
+  classical
+  have hzero := constraintResidualPoly_eq_zero_of_satisfies (cs := cs) (z := z) (ω := ω) hsat
+  simp [honestConstraintQuotient, hzero]
+
+
 /-- Constraint polynomial evaluation at domain points -/
 theorem constraint_poly_eval {F : Type} [Field F] [DecidableEq F]
     (_cs : R1CS F) (_z : Witness F _cs.nVars) (_i : Fin _cs.nCons)
@@ -553,5 +897,90 @@ theorem quotient_degree_bound {F : Type} [Field F]
   -- Substitute and rearrange
   rw [h_deg_Z] at h_deg_eq
   omega
+
+/-- Honest factor of the residual polynomial is unique. -/
+lemma constraintResidualPoly_factor_unique {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (hsat : satisfies cs z) :
+    ∃! q : Polynomial F,
+      constraintResidualPoly cs z ω = vanishing_poly cs.nCons ω * q := by
+  classical
+  obtain ⟨q, hq⟩ :=
+    constraintResidualPoly_factor_of_satisfies (cs := cs) (z := z) hprim hsat
+  refine ⟨q, hq, ?_⟩
+  intro q' hq'
+  have hroot : ω ^ cs.nCons = 1 := hprim.pow_eq_one
+  have hq_left : constraintResidualPoly cs z ω =
+      q * vanishing_poly cs.nCons ω := by
+        simpa [mul_comm] using hq
+  have hq'_left : constraintResidualPoly cs z ω =
+      q' * vanishing_poly cs.nCons ω := by
+        simpa [mul_comm] using hq'
+  exact
+    quotient_uniqueness (f := constraintResidualPoly cs z ω) (m := cs.nCons) (ω := ω)
+      (q₁ := q') (q₂ := q) hroot hq'_left hq_left
+
+/-- Canonical quotient polynomial provided by an honest witness. -/
+noncomputable def constraintResidualPoly_quotient {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (hsat : satisfies cs z) : Polynomial F :=
+  Classical.choose
+    (constraintResidualPoly_factor_unique (cs := cs) (z := z) hprim hsat).exists
+
+lemma constraintResidualPoly_eq_vanishing_mul_quotient {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (hsat : satisfies cs z) :
+    constraintResidualPoly cs z ω =
+      vanishing_poly cs.nCons ω * constraintResidualPoly_quotient (cs := cs) (z := z) hprim hsat := by
+  classical
+  have hspec :=
+    Classical.choose_spec
+      (constraintResidualPoly_factor_unique (cs := cs) (z := z) hprim hsat).exists
+  simpa using hspec
+
+@[simp] lemma constraintResidualPoly_quotient_eq_zero_of_satisfies {F : Type} [Field F]
+    [DecidableEq F] (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (hsat : satisfies cs z) :
+    constraintResidualPoly_quotient (cs := cs) (z := z) hprim hsat = 0 := by
+  classical
+  have hzero := constraintResidualPoly_eq_zero_of_satisfies (cs := cs) (z := z) (ω := ω) hsat
+  have hprod :
+      vanishing_poly cs.nCons ω *
+          constraintResidualPoly_quotient (cs := cs) (z := z) hprim hsat = 0 := by
+    simpa [hzero] using
+      (constraintResidualPoly_eq_vanishing_mul_quotient (cs := cs) (z := z)
+        (ω := ω) hprim hsat).symm
+  have hvanish : vanishing_poly cs.nCons ω ≠ 0 := vanishing_poly_ne_zero _ _
+  rcases mul_eq_zero.mp hprod with hvanish_zero | hquot_zero
+  · exact (hvanish hvanish_zero).elim
+  · exact hquot_zero
+
+lemma constraintResidualPoly_quotient_eq_honest {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) {ω : F}
+    (hprim : IsPrimitiveRoot ω cs.nCons) (hsat : satisfies cs z) :
+    constraintResidualPoly_quotient (cs := cs) (z := z) (ω := ω) hprim hsat =
+      honestConstraintQuotient (cs := cs) (z := z) hsat := by
+  classical
+  calc
+    constraintResidualPoly_quotient (cs := cs) (z := z) (ω := ω) hprim hsat
+        = 0
+            := constraintResidualPoly_quotient_eq_zero_of_satisfies
+              (cs := cs) (z := z) (ω := ω) hprim hsat
+    _ = honestConstraintQuotient (cs := cs) (z := z) hsat := by
+          simp [honestConstraintQuotient]
+
+lemma constraintResidualPoly_quotient_natDegree_le {F : Type} [Field F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (ω : F) {q : Polynomial F} {d : ℕ}
+    (hfactor : constraintResidualPoly cs z ω = vanishing_poly cs.nCons ω * q)
+    (hdeg : (constraintResidualPoly cs z ω).natDegree ≤ d)
+    (hpos : 0 < cs.nCons) :
+    q.natDegree ≤ d - cs.nCons := by
+  classical
+  have hdeg_Z := vanishing_poly_natDegree cs.nCons ω
+  refine quotient_degree_bound
+      (f := constraintResidualPoly cs z ω) (q := q) (m := cs.nCons) (d := d) (ω := ω)
+      ?_ hdeg ?_ hpos
+  · simpa [mul_comm] using hfactor
+  · simpa using hdeg_Z
 
 end LambdaSNARK

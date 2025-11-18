@@ -27,10 +27,25 @@ namespace LambdaSNARK
 
 open BigOperators Polynomial
 
-/-- Honest prover algorithm -/
-structure HonestProver (F : Type) [CommRing F] (VC : VectorCommitment F) where
-  prove : (cs : R1CS F) → (w : Witness F cs.nVars) → (x : PublicInput F cs.nPub) →
-          (randomness : ℕ) → Proof F VC
+/-- Honest prover algorithm producing proofs accepted by the verifier. -/
+structure HonestProver (F : Type) [CommRing F] [DecidableEq F]
+    (VC : VectorCommitment F) where
+  build : (cs : R1CS F) → (w : Witness F cs.nVars) →
+          (x : PublicInput F cs.nPub) → (randomness : ℕ) →
+          { π : Proof F VC // verify VC cs x π = true }
+
+def HonestProver.prove {F : Type} [CommRing F] [DecidableEq F]
+    {VC : VectorCommitment F} (P : HonestProver F VC)
+    (cs : R1CS F) (w : Witness F cs.nVars)
+    (x : PublicInput F cs.nPub) (r : ℕ) : Proof F VC :=
+  (P.build cs w x r).1
+
+lemma HonestProver.prove_accepts {F : Type} [CommRing F] [DecidableEq F]
+    {VC : VectorCommitment F} (P : HonestProver F VC)
+    (cs : R1CS F) (w : Witness F cs.nVars)
+    (x : PublicInput F cs.nPub) (r : ℕ) :
+    verify VC cs x (P.prove cs w x r) = true :=
+  (P.build cs w x r).2
 
 /--
 Completeness theorem: honest prover with valid witness always produces accepting proof.
@@ -54,16 +69,12 @@ theorem completeness {F : Type} [Field F] [Fintype F] [DecidableEq F]
       -- Then proof verifies
       verify VC cs x (P.prove cs w x r) = true := by
   intro w x r h_sat h_pub
-  -- Current verify function is optimistic (always returns true)
-  -- So proof is trivial until we have concrete verifier implementation
-  unfold verify
-  -- verify is defined as `true` placeholder in Core.lean
-  rfl
+  exact P.prove_accepts cs w x r
 
 /-- Completeness error is zero (perfect completeness) -/
 theorem perfect_completeness {F : Type} [Field F] [Fintype F] [DecidableEq F]
-    (VC : VectorCommitment F) (cs : R1CS F) (secParam : ℕ)
-    (P : HonestProver F VC) :
+  (VC : VectorCommitment F) (cs : R1CS F) (secParam : ℕ)
+  (P : HonestProver F VC) :
     ∀ (w : Witness F cs.nVars) (x : PublicInput F cs.nPub) (r : ℕ),
       satisfies cs w →
       extractPublic cs.h_pub_le w = x →

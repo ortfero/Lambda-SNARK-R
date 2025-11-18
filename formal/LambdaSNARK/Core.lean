@@ -183,6 +183,10 @@ lemma VectorCommitment.commit_injective {F : Type} [CommRing F]
 
 /-- Proof structure for ΛSNARK-R -/
 structure Proof (F : Type) [CommRing F] (VC : VectorCommitment F) where
+  -- Commitment parameters and public inputs
+  pp : VC.PP
+  public_input : List F
+
   -- Commitments to witness polynomials
   comm_Az : VC.Commitment
   comm_Bz : VC.Commitment
@@ -192,29 +196,149 @@ structure Proof (F : Type) [CommRing F] (VC : VectorCommitment F) where
   challenge_α : F
   challenge_β : F
 
+  -- Claimed polynomial evaluations at challenges
+  eval_Az_α : F
+  eval_Bz_α : F
+  eval_Bz_β : F
+  eval_Cz_α : F
+  constraint_eval : F
+  vanishing_at_α : F
+
   -- Polynomial openings at challenges
   opening_Az_α : VC.Opening
+  opening_Bz_α : VC.Opening
   opening_Bz_β : VC.Opening
   opening_Cz_α : VC.Opening
 
-  -- Quotient polynomial commitment and opening
+  -- Quotient polynomial commitment, evaluation, and opening
   comm_quotient : VC.Commitment
   opening_quotient_α : VC.Opening
-
-  -- Quotient polynomial itself (for extraction)
   quotient_poly : Polynomial F
+
+  -- Domain information for vanishing polynomial
+  domain_size : ℕ
+  primitive_root : F
+
+/-- Canonical list representation of the first `cs.nPub` public inputs. -/
+def publicInputToList {F : Type} [CommRing F]
+    {cs : R1CS F} (x : PublicInput F cs.nPub) : List F :=
+  List.ofFn fun i : Fin cs.nPub => x i
+
+lemma extractPublic_toList {F : Type} [CommRing F]
+    {cs : R1CS F} (w : Witness F cs.nVars) :
+    publicInputToList (x := extractPublic cs.h_pub_le w) =
+      List.ofFn fun i : Fin cs.nPub => w ⟨i.val, Nat.lt_of_lt_of_le i.isLt cs.h_pub_le⟩ := by
+  rfl
+
+/-- Evaluation of the `A` constraint polynomial at index `i`. -/
+def evaluateConstraintA {F : Type} [CommRing F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (i : Fin cs.nCons) : F :=
+  let iA := Fin.cast cs.h_dim_A.1.symm i
+  ∑ j : Fin cs.nVars, cs.A.toDense iA (Fin.cast cs.h_dim_A.2.symm j) * z j
+
+/-- Evaluation of the `B` constraint polynomial at index `i`. -/
+def evaluateConstraintB {F : Type} [CommRing F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (i : Fin cs.nCons) : F :=
+  let iB := Fin.cast cs.h_dim_B.1.symm i
+  ∑ j : Fin cs.nVars, cs.B.toDense iB (Fin.cast cs.h_dim_B.2.symm j) * z j
+
+/-- Evaluation of the `C` constraint polynomial at index `i`. -/
+def evaluateConstraintC {F : Type} [CommRing F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (i : Fin cs.nCons) : F :=
+  let iC := Fin.cast cs.h_dim_C.1.symm i
+  ∑ j : Fin cs.nVars, cs.C.toDense iC (Fin.cast cs.h_dim_C.2.symm j) * z j
+
+/-- Evaluate the constraint residual at index `i`. -/
+def evaluateConstraintResidual {F : Type} [CommRing F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (i : Fin cs.nCons) : F :=
+  evaluateConstraintA cs z i * evaluateConstraintB cs z i -
+    evaluateConstraintC cs z i
+
+lemma constraintPoly_eq_evaluateResidual {F : Type} [CommRing F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) (i : Fin cs.nCons) :
+    constraintPoly cs z i = evaluateConstraintResidual cs z i := by
+  classical
+  unfold constraintPoly evaluateConstraintResidual evaluateConstraintA
+    evaluateConstraintB evaluateConstraintC
+  simp [Fin.cast]
+
+lemma satisfies_iff_residual_zero {F : Type} [CommRing F] [DecidableEq F]
+    (cs : R1CS F) (z : Witness F cs.nVars) :
+    satisfies cs z ↔ ∀ i, evaluateConstraintResidual cs z i = 0 := by
+  simpa [constraintPoly_eq_evaluateResidual] using
+    satisfies_iff_constraint_zero cs z
+
 
 /-- Verifier's decision predicate -/
 def verify {F : Type} [CommRing F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F)
-    (_x : PublicInput F cs.nPub) (_π : Proof F VC) : Bool :=
-  -- Simplified verification logic (placeholder for full implementation)
-  -- In real implementation, would check:
-  -- 1. Opening verification: VC.verify for all openings
-  -- 2. Quotient polynomial check: q(α) * Z_H(α) = constraint_poly(α)
-  -- 3. Public input consistency: first l elements match x
-  -- For now, return true (optimistic verifier for type checking)
-  true
+    (x : PublicInput F cs.nPub) (π : Proof F VC) : Bool :=
+  let inputsOk := decide (π.public_input = publicInputToList x)
+  let domainOk := decide (π.domain_size = cs.nCons)
+  let openAz := VC.verify π.pp π.comm_Az π.challenge_α π.eval_Az_α π.opening_Az_α
+  let openBα := VC.verify π.pp π.comm_Bz π.challenge_α π.eval_Bz_α π.opening_Bz_α
+  let openBβ := VC.verify π.pp π.comm_Bz π.challenge_β π.eval_Bz_β π.opening_Bz_β
+  let openC := VC.verify π.pp π.comm_Cz π.challenge_α π.eval_Cz_α π.opening_Cz_α
+  let quotEval := π.quotient_poly.eval π.challenge_α
+  let openQ := VC.verify π.pp π.comm_quotient π.challenge_α quotEval π.opening_quotient_α
+  let constraintOk := decide (π.eval_Az_α * π.eval_Bz_α - π.eval_Cz_α = π.constraint_eval)
+  let vanishingOk := decide (π.constraint_eval = quotEval * π.vanishing_at_α)
+  inputsOk && domainOk && openAz && openBα && openBβ && openC && openQ && constraintOk && vanishingOk
+
+lemma verify_eq_true_of_spec {F : Type} [CommRing F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (x : PublicInput F cs.nPub) (π : Proof F VC)
+    (h_inputs : π.public_input = publicInputToList x)
+    (h_domain : π.domain_size = cs.nCons)
+    (h_openAz : VC.verify π.pp π.comm_Az π.challenge_α π.eval_Az_α π.opening_Az_α = true)
+    (h_openBα : VC.verify π.pp π.comm_Bz π.challenge_α π.eval_Bz_α π.opening_Bz_α = true)
+    (h_openBβ : VC.verify π.pp π.comm_Bz π.challenge_β π.eval_Bz_β π.opening_Bz_β = true)
+    (h_openC : VC.verify π.pp π.comm_Cz π.challenge_α π.eval_Cz_α π.opening_Cz_α = true)
+    (h_openQ : VC.verify π.pp π.comm_quotient π.challenge_α
+      (π.quotient_poly.eval π.challenge_α) π.opening_quotient_α = true)
+    (h_constraint : π.eval_Az_α * π.eval_Bz_α - π.eval_Cz_α = π.constraint_eval)
+    (h_vanishing : π.constraint_eval =
+      π.quotient_poly.eval π.challenge_α * π.vanishing_at_α) :
+    verify VC cs x π = true := by
+  classical
+  simp [verify, publicInputToList, h_inputs, h_domain, h_openAz, h_openBα,
+    h_openBβ, h_openC, h_openQ, h_constraint, h_vanishing]
+
+/-- Data certificate ensuring a proof passes all verifier checks. -/
+structure ProofCertificate {F : Type} [CommRing F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (x : PublicInput F cs.nPub) where
+  proof : Proof F VC
+  h_public : proof.public_input = publicInputToList x
+  h_domain : proof.domain_size = cs.nCons
+  h_openAz : VC.verify proof.pp proof.comm_Az proof.challenge_α proof.eval_Az_α
+    proof.opening_Az_α = true
+  h_openBα : VC.verify proof.pp proof.comm_Bz proof.challenge_α proof.eval_Bz_α
+    proof.opening_Bz_α = true
+  h_openBβ : VC.verify proof.pp proof.comm_Bz proof.challenge_β proof.eval_Bz_β
+    proof.opening_Bz_β = true
+  h_openC : VC.verify proof.pp proof.comm_Cz proof.challenge_α proof.eval_Cz_α
+    proof.opening_Cz_α = true
+  h_openQ : VC.verify proof.pp proof.comm_quotient proof.challenge_α
+    (proof.quotient_poly.eval proof.challenge_α) proof.opening_quotient_α = true
+  h_constraint : proof.eval_Az_α * proof.eval_Bz_α - proof.eval_Cz_α =
+    proof.constraint_eval
+  h_vanishing : proof.constraint_eval =
+    proof.quotient_poly.eval proof.challenge_α * proof.vanishing_at_α
+
+namespace ProofCertificate
+
+variable {F : Type} [CommRing F] [DecidableEq F]
+variable {VC : VectorCommitment F} {cs : R1CS F}
+variable {x : PublicInput F cs.nPub}
+
+@[simp] lemma verify_eq_true (cert : ProofCertificate VC cs x) :
+    verify VC cs x cert.proof = true :=
+  verify_eq_true_of_spec VC cs x cert.proof cert.h_public cert.h_domain
+    cert.h_openAz cert.h_openBα cert.h_openBβ cert.h_openC cert.h_openQ
+    cert.h_constraint cert.h_vanishing
+
+end ProofCertificate
 
 /-- Predicate: verification passes and quotient polynomial is correct -/
 def verify_with_quotient {F : Type} [Field F] [DecidableEq F]
