@@ -700,6 +700,13 @@ structure ForkingVerifierEquationsCore (VC : VectorCommitment F) (cs : R1CS F)
             (extract_witness VC cs
               (extract_quotient_diff VC cs t1 t2 h_fork m ω)
               m ω h_m_vars x) i
+  quotient_diff_natDegree_lt_domain :
+    (x : PublicInput F cs.nPub) →
+      (extract_quotient_diff VC cs t1 t2 h_fork m ω
+          - LambdaSNARK.constraintNumeratorPoly cs
+              (extract_witness VC cs
+                (extract_quotient_diff VC cs t1 t2 h_fork m ω)
+                m ω h_m_vars x) ω).natDegree < m
   remainder_zero :
     (extract_quotient_diff VC cs t1 t2 h_fork m ω) %ₘ
       vanishing_poly m ω = 0
@@ -719,6 +726,13 @@ structure ForkingVerifierEquations (VC : VectorCommitment F) (cs : R1CS F)
             (extract_witness VC cs
               (extract_quotient_diff VC cs t1 t2 h_fork m ω)
               m ω h_m_vars x) i
+  quotient_diff_natDegree_lt_domain :
+    (x : PublicInput F cs.nPub) →
+      (extract_quotient_diff VC cs t1 t2 h_fork m ω
+          - LambdaSNARK.constraintNumeratorPoly cs
+              (extract_witness VC cs
+                (extract_quotient_diff VC cs t1 t2 h_fork m ω)
+                m ω h_m_vars x) ω).natDegree < m
   remainder_zero :
     (extract_quotient_diff VC cs t1 t2 h_fork m ω) %ₘ
       vanishing_poly m ω = 0
@@ -848,6 +862,47 @@ lemma constraint_quotient_sub_numerator_mod_vanishing_zero_of_equations
   simpa [q, w, Polynomial.eval_sub, sub_eq_add_neg] using
     (sub_eq_zero.mpr h_match.symm)
 
+lemma constraint_quotient_sub_numerator_eq_zero_of_equations
+    (VC : VectorCommitment F) (cs : R1CS F)
+    {t1 t2 : Transcript F VC} {h_fork : is_valid_fork VC t1 t2}
+    (eqns : ForkingVerifierEquations VC cs t1 t2 h_fork)
+    (x : PublicInput F cs.nPub) :
+    extract_quotient_diff VC cs t1 t2 h_fork eqns.m eqns.ω =
+      LambdaSNARK.constraintNumeratorPoly cs
+        (extract_witness VC cs
+          (extract_quotient_diff VC cs t1 t2 h_fork eqns.m eqns.ω)
+          eqns.m eqns.ω eqns.h_m_vars x) eqns.ω := by
+  classical
+  set q := extract_quotient_diff VC cs t1 t2 h_fork eqns.m eqns.ω
+  set w := extract_witness VC cs q eqns.m eqns.ω eqns.h_m_vars x
+  have h_monic : (vanishing_poly eqns.m eqns.ω).Monic := by
+    classical
+    unfold LambdaSNARK.vanishing_poly
+    apply Polynomial.monic_prod_of_monic
+    intro i _
+    simpa using Polynomial.monic_X_sub_C (eqns.ω ^ (i : ℕ))
+  have h_mod_raw := constraint_quotient_sub_numerator_mod_vanishing_zero_of_equations
+      (VC := VC) (cs := cs) (t1 := t1) (t2 := t2) (h_fork := h_fork) eqns x
+  have h_mod :
+      (q - LambdaSNARK.constraintNumeratorPoly cs w eqns.ω) %ₘ
+          vanishing_poly eqns.m eqns.ω = 0 := by
+    simpa [q, w, eqns.h_m_cons] using h_mod_raw
+  have h_dvd :
+      vanishing_poly eqns.m eqns.ω ∣
+        (q - LambdaSNARK.constraintNumeratorPoly cs w eqns.ω) := by
+    refine (Polynomial.modByMonic_eq_zero_iff_dvd h_monic).1 ?_
+    simpa using h_mod
+  have h_nat :
+      (q - LambdaSNARK.constraintNumeratorPoly cs w eqns.ω).natDegree < eqns.m := by
+    simpa [q, w] using eqns.quotient_diff_natDegree_lt_domain x
+  have h_zero :=
+    LambdaSNARK.vanishing_poly_dvd_eq_zero_of_natDegree_lt (F := F)
+      (m := eqns.m) (ω := eqns.ω)
+      (p := q - LambdaSNARK.constraintNumeratorPoly cs w eqns.ω)
+      h_dvd h_nat
+  have h_eq := sub_eq_zero.mp h_zero
+  simpa [q, w] using h_eq
+
 lemma vanishing_poly_dvd_quotient_sub_numerator_of_equations
     (VC : VectorCommitment F) (cs : R1CS F)
     {t1 t2 : Transcript F VC} {h_fork : is_valid_fork VC t1 t2}
@@ -863,19 +918,16 @@ lemma vanishing_poly_dvd_quotient_sub_numerator_of_equations
   set q := extract_quotient_diff VC cs t1 t2 h_fork eqns.m eqns.ω
   set w :=
     extract_witness VC cs q eqns.m eqns.ω eqns.h_m_vars x
-  have h_monic : (vanishing_poly cs.nCons eqns.ω).Monic := by
-    classical
-    unfold LambdaSNARK.vanishing_poly
-    apply Polynomial.monic_prod_of_monic
-    intro i _
-    simpa using Polynomial.monic_X_sub_C (eqns.ω ^ (i : ℕ))
-  have h_mod :=
-    constraint_quotient_sub_numerator_mod_vanishing_zero_of_equations (VC := VC)
+  have h_eq :=
+    constraint_quotient_sub_numerator_eq_zero_of_equations (VC := VC)
       (cs := cs) (t1 := t1) (t2 := t2) (h_fork := h_fork) eqns x
-  have h_dvd :=
-    (Polynomial.modByMonic_eq_zero_iff_dvd h_monic).1
-      (by simpa [q, w] using h_mod)
-  simpa [q, w] using h_dvd
+  have h_zero :
+      q - LambdaSNARK.constraintNumeratorPoly cs w eqns.ω = 0 := by
+    simpa [q, w] using sub_eq_zero.mpr h_eq
+  have : vanishing_poly cs.nCons eqns.ω ∣
+      q - LambdaSNARK.constraintNumeratorPoly cs w eqns.ω := by
+    simp [q, w, h_zero]
+  simpa [q, w] using this
 
 end ForkingEquations
 
@@ -942,6 +994,9 @@ def build (provider : ForkingEquationsProvider VC cs)
     h_m_cons := core.h_m_vars.trans provider.square
     h_primitive := core.h_primitive
     quotient_eval := core.quotient_eval
+    quotient_diff_natDegree_lt_domain := by
+      intro x
+      simpa using core.quotient_diff_natDegree_lt_domain x
     remainder_zero := core.remainder_zero }
 
 def ofProtocol (VC : VectorCommitment F) (cs : R1CS F)

@@ -96,6 +96,66 @@ lemma coeffList_injective :
 end CoeffList
 
 -- ============================================================================
+-- Degree Control Utilities
+-- ============================================================================
+
+section DegreeBounds
+
+variable {F : Type*} [Field F]
+
+lemma degree_lt_of_natDegree_lt {p : Polynomial F} {m : ℕ}
+    (hp : p.natDegree < m) :
+    p.degree < (m : WithBot ℕ) := by
+  classical
+  by_cases hzero : p = 0
+  · subst hzero
+    have : ((m : WithBot ℕ) ≠ (⊥ : WithBot ℕ)) := by simp
+    exact bot_lt_iff_ne_bot.mpr this
+  · have hdeg := Polynomial.degree_eq_natDegree hzero
+    have : ((p.natDegree : ℕ) : WithBot ℕ) < (m : WithBot ℕ) := by
+      exact_mod_cast hp
+    simpa [hdeg] using this
+
+lemma natDegree_sub_lt_of_lt {p q : Polynomial F} {m : ℕ}
+    (hp : p = 0 ∨ p.natDegree < m)
+    (hq : q = 0 ∨ q.natDegree < m)
+    (hm : 0 < m) :
+    (p - q).natDegree < m := by
+  classical
+  cases hp with
+  | inl hp0 =>
+      subst hp0
+      cases hq with
+      | inl hq0 =>
+          subst hq0
+          simpa [sub_eq_add_neg] using hm
+      | inr hq_lt =>
+          simpa [sub_eq_add_neg] using hq_lt
+  | inr hp_lt =>
+      cases hq with
+      | inl hq0 =>
+          subst hq0
+          simpa using hp_lt
+      | inr hq_lt =>
+          by_cases hsub : p - q = 0
+          · have hzero : (p - q).natDegree = 0 := by simp [hsub]
+            simpa [hzero] using hm
+          ·
+            have hp_deg_lt : p.degree < (m : WithBot ℕ) :=
+              degree_lt_of_natDegree_lt hp_lt
+            have hq_deg_lt : q.degree < (m : WithBot ℕ) :=
+              degree_lt_of_natDegree_lt hq_lt
+            have hdeg_le : (p - q).degree ≤ max p.degree q.degree :=
+              Polynomial.degree_sub_le _ _
+            have hdeg_lt : (p - q).degree < (m : WithBot ℕ) :=
+              lt_of_le_of_lt hdeg_le (max_lt hp_deg_lt hq_deg_lt)
+            have : ((p - q).natDegree : WithBot ℕ) < (m : WithBot ℕ) := by
+              simpa [Polynomial.degree_eq_natDegree hsub] using hdeg_lt
+            exact_mod_cast this
+
+end DegreeBounds
+
+-- ============================================================================
 -- Vanishing Polynomial
 -- ============================================================================
 
@@ -171,6 +231,33 @@ lemma vanishing_poly_natDegree {F : Type*} [Field F]
   simpa [vanishing_poly, Finset.card_univ] using
     natDegree_prod_X_sub_C (Finset.univ : Finset (Fin m))
       (fun i : Fin m => ω ^ (i : ℕ))
+
+/-- If a polynomial has smaller degree than the vanishing polynomial and is
+    divisible by it, then the polynomial must be zero. -/
+lemma vanishing_poly_dvd_eq_zero_of_natDegree_lt {F : Type*} [Field F]
+    {m : ℕ} {ω : F} {p : Polynomial F}
+    (hdiv : vanishing_poly m ω ∣ p)
+    (hdeg : p.natDegree < m) :
+    p = 0 := by
+  classical
+  rcases hdiv with ⟨q, rfl⟩
+  by_cases hq : q = (0 : Polynomial F)
+  · simp [hq]
+  have hvan_ne : vanishing_poly m ω ≠ (0 : Polynomial F) :=
+    vanishing_poly_ne_zero m ω
+  have hlt : (vanishing_poly m ω * q).natDegree < m := by
+    simpa using hdeg
+  have hdeg_mul := Polynomial.natDegree_mul hvan_ne hq
+  have hvan_deg : (vanishing_poly m ω).natDegree = m :=
+    vanishing_poly_natDegree m ω
+  have hge : m ≤ (vanishing_poly m ω * q).natDegree := by
+    calc
+      m ≤ m + q.natDegree := Nat.le_add_right _ _
+      _ = (vanishing_poly m ω).natDegree + q.natDegree := by
+            simp [hvan_deg]
+      _ = (vanishing_poly m ω * q).natDegree := by
+            simp [hdeg_mul]
+  exact False.elim ((not_lt_of_ge hge) hlt)
 
 /-- Convenience lemma bundling evaluation of the vanishing polynomial on the domain. -/
 @[simp] lemma vanishingEval_domain {F : Type*} [Field F]

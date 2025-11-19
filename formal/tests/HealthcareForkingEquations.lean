@@ -76,6 +76,20 @@ axiom healthcare_remainder_zero
       healthcareR1CS.nVars healthcareOmega) %ₘ
         vanishing_poly healthcareR1CS.nVars healthcareOmega = 0
 
+axiom healthcare_quotient_diff_natDegree_lt_domain
+    (VC : VectorCommitment HealthcareField)
+    (t1 t2 : Transcript HealthcareField VC)
+    (h_fork : is_valid_fork VC t1 t2)
+    (x : PublicInput HealthcareField healthcareR1CS.nPub) :
+    (extract_quotient_diff VC healthcareR1CS t1 t2 h_fork
+          healthcareR1CS.nVars healthcareOmega -
+        LambdaSNARK.constraintNumeratorPoly healthcareR1CS
+          (extract_witness VC healthcareR1CS
+            (extract_quotient_diff VC healthcareR1CS t1 t2 h_fork
+              healthcareR1CS.nVars healthcareOmega)
+            healthcareR1CS.nVars healthcareOmega rfl x)
+          healthcareOmega).natDegree < healthcareR1CS.nVars
+
 /-- Witness packaging the healthcare-specific verifier equations. -/
 noncomputable def healthcareForkingCore
     (VC : VectorCommitment HealthcareField)
@@ -88,6 +102,8 @@ noncomputable def healthcareForkingCore
     h_primitive := by
       simpa using healthcareOmega_isPrimitiveRoot
     quotient_eval := healthcare_quotient_eval VC t1 t2 h_fork
+    quotient_diff_natDegree_lt_domain :=
+      healthcare_quotient_diff_natDegree_lt_domain VC t1 t2 h_fork
     remainder_zero := healthcare_remainder_zero VC t1 t2 h_fork }
 
 /-- The healthcare R1CS admits a square evaluation domain. -/
