@@ -857,6 +857,17 @@ lemma vanishing_poly_dvd_quotient_sub_numerator_of_equations
     simp [q, w, h_zero]
   simpa [q, w] using this
 
+lemma constraint_quotient_mod_vanishing_zero_of_equations (VC : VectorCommitment F)
+  (cs : R1CS F) {t1 t2 : Transcript F VC} {h_fork : is_valid_fork VC t1 t2}
+  (eqns : ForkingVerifierEquations VC cs t1 t2 h_fork) :
+    (extract_quotient_diff VC cs t1 t2 h_fork eqns.m eqns.ω)
+        %ₘ vanishing_poly cs.nCons eqns.ω = 0 := by
+  classical
+  set q := extract_quotient_diff VC cs t1 t2 h_fork eqns.m eqns.ω
+  have h_mod : q %ₘ vanishing_poly eqns.m eqns.ω = 0 := by
+    simpa [q] using eqns.remainder_zero
+  simpa [q, eqns.h_m_cons] using h_mod
+
 lemma constraint_numerator_mod_vanishing_zero_of_equations (VC : VectorCommitment F)
     (cs : R1CS F) {t1 t2 : Transcript F VC} {h_fork : is_valid_fork VC t1 t2}
     (eqns : ForkingVerifierEquations VC cs t1 t2 h_fork)
@@ -872,24 +883,17 @@ lemma constraint_numerator_mod_vanishing_zero_of_equations (VC : VectorCommitmen
   have h_eq :=
     constraint_quotient_sub_numerator_eq_zero_of_equations (VC := VC)
       (cs := cs) (t1 := t1) (t2 := t2) (h_fork := h_fork) eqns x
-  have h_mod_q : q %ₘ vanishing_poly eqns.m eqns.ω = 0 := eqns.remainder_zero
-  have h_mod_congr :=
-    congrArg (fun p : Polynomial F => p %ₘ vanishing_poly eqns.m eqns.ω) h_eq
-  have h_mod_congr' :
-      q %ₘ vanishing_poly eqns.m eqns.ω =
-        (LambdaSNARK.constraintNumeratorPoly cs w eqns.ω) %ₘ
-          vanishing_poly eqns.m eqns.ω := by
-    simpa [q, w] using h_mod_congr
+  have h_mod_q :=
+    constraint_quotient_mod_vanishing_zero_of_equations (VC := VC)
+      (cs := cs) (t1 := t1) (t2 := t2) (h_fork := h_fork) eqns
+  have h_congr :=
+    congrArg (fun p : Polynomial F => p %ₘ vanishing_poly cs.nCons eqns.ω) h_eq
   have h_mod_numer :
       (LambdaSNARK.constraintNumeratorPoly cs w eqns.ω) %ₘ
-        vanishing_poly eqns.m eqns.ω = 0 := by
-    have := h_mod_congr' ▸ h_mod_q
-    simpa [q, w] using this
-  have h_mod_cons :
-      (LambdaSNARK.constraintNumeratorPoly cs w eqns.ω) %ₘ
         vanishing_poly cs.nCons eqns.ω = 0 := by
-    simpa [eqns.h_m_cons] using h_mod_numer
-  simpa [q, w] using h_mod_cons
+    have h := Eq.trans h_congr.symm h_mod_q
+    simpa [q, w] using h
+  simpa [q, w] using h_mod_numer
 
 lemma constraint_poly_zero_of_equations (VC : VectorCommitment F) (cs : R1CS F)
     {t1 t2 : Transcript F VC} {h_fork : is_valid_fork VC t1 t2}
