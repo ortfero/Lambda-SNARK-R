@@ -1324,6 +1324,123 @@ def heavyCommitments {F : Type} [Field F] [Fintype F] [DecidableEq F]
       successMassGivenCommit VC cs A x secParam comm_tuple ≥
         ENNReal.ofReal ε * commitMass VC cs A x secParam comm_tuple}
 
+lemma exists_success_transcript_of_heavyCommitment
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈ heavyCommitments VC cs A x secParam ε) :
+    ∃ t : Transcript F VC,
+      success_event VC cs x t ∧
+      transcriptCommitTuple VC t = comm_tuple ∧
+      0 < (run_adversary_transcript (VC := VC) (cs := cs) A x secParam) t := by
+  classical
+  set p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam with hp
+  have h_heavy :
+      0 < commitMass VC cs A x secParam comm_tuple ∧
+        successMassGivenCommit VC cs A x secParam comm_tuple ≥
+          ENNReal.ofReal ε * commitMass VC cs A x secParam comm_tuple := by
+    simpa [heavyCommitments] using h_mem
+  have h_commit_pos : 0 < commitMass VC cs A x secParam comm_tuple := h_heavy.1
+  have h_success_ge := h_heavy.2
+  have h_eps_pos : 0 < ENNReal.ofReal ε := ENNReal.ofReal_pos.mpr h_ε_pos
+  have h_sum_pos :
+      0 < successMassGivenCommit VC cs A x secParam comm_tuple := by
+    have h_prod_ne_zero :
+        ENNReal.ofReal ε * commitMass VC cs A x secParam comm_tuple ≠ 0 :=
+      mul_ne_zero (ne_of_gt h_eps_pos) (ne_of_gt h_commit_pos)
+    have h_prod_pos :
+        0 < ENNReal.ofReal ε * commitMass VC cs A x secParam comm_tuple :=
+      lt_of_le_of_ne'
+        (bot_le : (0 : ENNReal) ≤ ENNReal.ofReal ε * commitMass VC cs A x secParam comm_tuple)
+        (by simpa [eq_comm] using h_prod_ne_zero)
+    exact lt_of_lt_of_le h_prod_pos h_success_ge
+  have h_sum_pos' :
+      0 < (∑'
+        t,
+          (if
+              success_event VC cs x t ∧
+                  transcriptCommitTuple VC t = comm_tuple
+            then p t
+            else 0)) := by
+    simpa [successMassGivenCommit, hp] using h_sum_pos
+  refine by_contra ?_
+  intro h_none
+  have h_all_zero :
+      ∀ t : Transcript F VC,
+        success_event VC cs x t ∧ transcriptCommitTuple VC t = comm_tuple → p t = 0 := by
+    intro t h_pred
+    have h_not_pos : ¬ 0 < p t := by
+      intro h_pos
+      exact h_none ⟨t, h_pred.1, h_pred.2, h_pos⟩
+    have h_le_zero : p t ≤ 0 := not_lt.mp h_not_pos
+    exact le_antisymm h_le_zero bot_le
+  have h_zero :
+      (∑'
+        t,
+          (if
+              success_event VC cs x t ∧
+                  transcriptCommitTuple VC t = comm_tuple
+            then p t
+            else 0)) = 0 := by
+    refine ENNReal.tsum_eq_zero.mpr ?_
+    intro t
+    by_cases h_pred : success_event VC cs x t ∧ transcriptCommitTuple VC t = comm_tuple
+    · have : p t = 0 := h_all_zero t h_pred
+      simp [h_pred, this]
+    · simp [h_pred]
+  exact (ne_of_gt h_sum_pos') h_zero
+
+lemma exists_success_transcript_of_successMassGivenCommitAndChallenge_pos
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    {α : F}
+    (h_pos : 0 <
+      successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α) :
+    ∃ t : Transcript F VC,
+      success_event VC cs x t ∧
+      transcriptCommitTuple VC t = comm_tuple ∧
+      t.view.alpha = α ∧
+      0 < (run_adversary_transcript (VC := VC) (cs := cs) A x secParam) t := by
+  classical
+  set p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam with hp
+  have h_sum_pos :
+      0 < (∑'
+        t,
+          (if
+              success_event VC cs x t ∧
+                transcriptCommitTuple VC t = comm_tuple ∧
+                t.view.alpha = α then p t else 0)) := by
+    simpa [successMassGivenCommitAndChallenge, hp] using h_pos
+  by_contra h_none
+  have h_forall := h_none
+  push_neg at h_forall
+  have h_all_zero :
+      ∀ t : Transcript F VC,
+        success_event VC cs x t ∧ transcriptCommitTuple VC t = comm_tuple ∧ t.view.alpha = α →
+          p t = 0 := by
+    intro t h_pred
+    have h_le_zero : p t ≤ 0 := h_forall t h_pred.1 h_pred.2.1 h_pred.2.2
+    exact le_antisymm h_le_zero bot_le
+  have h_zero :
+      (∑'
+        t,
+          (if
+              success_event VC cs x t ∧
+                transcriptCommitTuple VC t = comm_tuple ∧
+                t.view.alpha = α then p t else 0)) = 0 := by
+    refine ENNReal.tsum_eq_zero.mpr ?_
+    intro t
+    by_cases h_pred :
+        success_event VC cs x t ∧ transcriptCommitTuple VC t = comm_tuple ∧ t.view.alpha = α
+    · have : p t = 0 := h_all_zero t h_pred
+      simp [h_pred, this]
+    · simp [h_pred]
+  exact (ne_of_gt h_sum_pos) h_zero
+
 lemma heavyCommitments_mem_iff {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
     (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ)
@@ -1478,6 +1595,20 @@ lemma successMassGivenCommit_eq_tsum_successMassGivenCommitChallenge
     intro α
     simp [successMassGivenCommitAndChallenge, hp]
   exact h_left.trans (h_split.trans (h_swapped.trans h_right.symm))
+
+/-- Finite version of the previous decomposition. -/
+lemma successMassGivenCommit_eq_sum_successMassGivenCommitChallenge
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) :
+    successMassGivenCommit VC cs A x secParam comm_tuple =
+      ∑ α ∈ (Finset.univ : Finset F),
+        successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α := by
+  classical
+  simpa [tsum_fintype] using
+    successMassGivenCommit_eq_tsum_successMassGivenCommitChallenge (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (comm_tuple := comm_tuple)
 
 /-- Разложение общей массы успеха на сумму условных масс по кортежам коммитов. -/
 lemma successMass_eq_tsum_successMassGivenCommit {F : Type} [Field F] [Fintype F] [DecidableEq F]
@@ -1634,6 +1765,43 @@ lemma exists_heavyCommitment_of_successProbability_lt
       (x := x) (secParam := secParam) (ε := ε) (comm_tuple := comm_tuple)).2
         ⟨h_mass_pos, h_ge⟩
 
+lemma exists_success_transcript_of_successProbability_lt
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    (h_prob : ε < successProbability VC cs A x secParam) :
+    ∃ t : Transcript F VC,
+      success_event VC cs x t ∧
+      0 < (run_adversary_transcript (VC := VC) (cs := cs) A x secParam) t := by
+  classical
+  obtain ⟨comm_tuple, h_heavy⟩ :=
+    exists_heavyCommitment_of_successProbability_lt (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_prob
+  obtain ⟨t, h_success, _, h_pos⟩ :=
+    exists_success_transcript_of_heavyCommitment (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_ε_pos h_heavy
+  exact ⟨t, h_success, h_pos⟩
+
+lemma successMass_pos_of_successProbability_lt
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    (h_prob : ε < successProbability VC cs A x secParam) :
+    0 < successMass VC cs A x secParam := by
+  classical
+  have h_success_pos : 0 < successProbability VC cs A x secParam :=
+    lt_trans h_ε_pos h_prob
+  by_contra h_not_pos
+  have h_le_zero : successMass VC cs A x secParam ≤ 0 := not_lt.mp h_not_pos
+  have h_zero : successMass VC cs A x secParam = 0 :=
+    le_antisymm h_le_zero bot_le
+  have h_prob_zero : successProbability VC cs A x secParam = 0 := by
+    simp [successProbability_toReal_successMass (VC := VC) (cs := cs)
+        (A := A) (x := x) (secParam := secParam), h_zero]
+  exact (ne_of_gt h_success_pos) (by simp [h_prob_zero])
+
 /-- Полное разложение массы успеха по кортежам коммитов и вызовам. -/
 lemma successMass_eq_tsum_successMassGivenCommitAndChallenge
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
@@ -1659,6 +1827,330 @@ lemma successMass_eq_tsum_successMassGivenCommitAndChallenge
       successMassGivenCommit_eq_tsum_successMassGivenCommitChallenge (VC := VC) (cs := cs)
         (A := A) (x := x) (secParam := secParam) (comm_tuple := comm_tuple)
   exact h_comm.trans h_refine
+
+lemma exists_commit_with_successMass_pos_of_successProbability_lt
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    (h_prob : ε < successProbability VC cs A x secParam) :
+    ∃ comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment,
+      0 < successMassGivenCommit VC cs A x secParam comm_tuple := by
+  classical
+  obtain ⟨t, h_success, h_pos⟩ :=
+    exists_success_transcript_of_successProbability_lt (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_ε_pos h_prob
+  set p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam with hp
+  refine ⟨transcriptCommitTuple VC t, ?_⟩
+  let f : Transcript F VC → ENNReal := fun s =>
+    if success_event VC cs x s ∧ transcriptCommitTuple VC s = transcriptCommitTuple VC t
+      then p s else 0
+  have hf_def :
+      successMassGivenCommit VC cs A x secParam (transcriptCommitTuple VC t)
+        = ∑' s, f s := by
+    simp [f, successMassGivenCommit, hp]
+  let g : Transcript F VC → ENNReal := fun s => if s = t then f s else 0
+  have hg_le : g ≤ f := by
+    intro s
+    by_cases hst : s = t
+    · subst hst
+      simp [g]
+    · have h_nonneg : 0 ≤ f s := by
+        dsimp [f]
+        by_cases h_cond : success_event VC cs x s ∧
+            transcriptCommitTuple VC s = transcriptCommitTuple VC t
+        · have : 0 ≤ p s := bot_le
+          simp [h_cond, this]
+        · simp [h_cond]
+      simp [g, hst, h_nonneg]
+  have hg_sum : (∑' s, g s) = f t := by
+    classical
+    refine (tsum_eq_single t (by
+      intro s hst
+      simp [g, hst])).trans ?_
+    simp [g]
+  have h_f_t : f t = p t := by
+    simp [f, h_success]
+  have h_tsum_le := ENNReal.tsum_le_tsum hg_le
+  have h_rhs : (∑' s, f s)
+      = successMassGivenCommit VC cs A x secParam (transcriptCommitTuple VC t) := by
+    simp [hf_def]
+  have h_lhs : (∑' s, g s) = p t := by simp [hg_sum, h_f_t]
+  have h_ge : p t ≤ successMassGivenCommit VC cs A x secParam (transcriptCommitTuple VC t) := by
+    simpa [h_lhs, h_rhs] using h_tsum_le
+  exact lt_of_lt_of_le h_pos h_ge
+
+lemma exists_successMassGivenCommitAndChallenge_pos_of_successMassGivenCommit_pos
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_pos : 0 < successMassGivenCommit VC cs A x secParam comm_tuple) :
+    ∃ α : F,
+      0 < successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α := by
+  classical
+  have h_tsum :=
+    successMassGivenCommit_eq_tsum_successMassGivenCommitChallenge (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (comm_tuple := comm_tuple)
+  by_contra h_none
+  push_neg at h_none
+  have h_all_zero :
+      ∀ α : F,
+        successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α = 0 := by
+    intro α
+    have h_le_zero := h_none α
+    exact le_antisymm h_le_zero bot_le
+  have h_sum_zero :
+      ∑' α,
+        successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α = 0 := by
+    refine ENNReal.tsum_eq_zero.mpr ?_
+    intro α
+    simpa using h_all_zero α
+  have h_zero : successMassGivenCommit VC cs A x secParam comm_tuple = 0 := by
+    simpa [h_sum_zero] using h_tsum
+  exact (ne_of_gt h_pos) h_zero
+
+lemma successMassGivenCommit_pos_of_heavyCommitment
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈ heavyCommitments VC cs A x secParam ε) :
+    0 < successMassGivenCommit VC cs A x secParam comm_tuple := by
+  classical
+  have h_heavy :
+      0 < commitMass VC cs A x secParam comm_tuple ∧
+        successMassGivenCommit VC cs A x secParam comm_tuple ≥
+          ENNReal.ofReal ε * commitMass VC cs A x secParam comm_tuple := by
+    simpa [heavyCommitments] using h_mem
+  have h_commit_pos : 0 < commitMass VC cs A x secParam comm_tuple := h_heavy.1
+  have h_ge := h_heavy.2
+  have h_eps_pos : 0 < ENNReal.ofReal ε := ENNReal.ofReal_pos.mpr h_ε_pos
+  have h_prod_ne_zero :
+      ENNReal.ofReal ε * commitMass VC cs A x secParam comm_tuple ≠ 0 :=
+    mul_ne_zero (ne_of_gt h_eps_pos) (ne_of_gt h_commit_pos)
+  have h_prod_pos :
+      0 < ENNReal.ofReal ε * commitMass VC cs A x secParam comm_tuple :=
+    lt_of_le_of_ne' (bot_le : (0 : ENNReal) ≤
+        ENNReal.ofReal ε * commitMass VC cs A x secParam comm_tuple)
+      (by simpa [eq_comm] using h_prod_ne_zero)
+  exact lt_of_lt_of_le h_prod_pos h_ge
+
+lemma exists_successMassGivenCommitAndChallenge_pos_of_heavyCommitment
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈ heavyCommitments VC cs A x secParam ε) :
+    ∃ α : F,
+      0 < successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α := by
+  refine exists_successMassGivenCommitAndChallenge_pos_of_successMassGivenCommit_pos
+    (VC := VC) (cs := cs) (A := A) (x := x) (secParam := secParam)
+    (comm_tuple := comm_tuple)
+    (successMassGivenCommit_pos_of_heavyCommitment (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_ε_pos h_mem)
+
+lemma exists_success_transcript_with_challenge_of_heavyCommitment
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈ heavyCommitments VC cs A x secParam ε) :
+    ∃ (α : F) (t : Transcript F VC),
+      success_event VC cs x t ∧
+      transcriptCommitTuple VC t = comm_tuple ∧
+      t.view.alpha = α ∧
+      0 < (run_adversary_transcript (VC := VC) (cs := cs) A x secParam) t := by
+  classical
+  obtain ⟨α, h_pos⟩ :=
+    exists_successMassGivenCommitAndChallenge_pos_of_heavyCommitment (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (ε := ε) h_ε_pos h_mem
+  obtain ⟨t, h_success, h_comm, h_alpha, h_run_pos⟩ :=
+    exists_success_transcript_of_successMassGivenCommitAndChallenge_pos (VC := VC)
+      (cs := cs) (A := A) (x := x) (secParam := secParam)
+      (comm_tuple := comm_tuple) (α := α) h_pos
+  exact ⟨α, t, h_success, h_comm, h_alpha, h_run_pos⟩
+
+/-- Set of challenges that yield positive conditional success mass for a fixed commitment. -/
+noncomputable def successfulChallenges
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) :
+    Finset F :=
+  (Finset.univ : Finset F).filter
+    (fun α => 0 < successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α)
+
+lemma successfulChallenges_mem
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    {α : F}
+    (h_pos : 0 < successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α) :
+    α ∈ successfulChallenges VC cs A x secParam comm_tuple := by
+  classical
+  simp [successfulChallenges, h_pos]
+
+lemma successfulChallenges_pos_of_mem
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    {α : F}
+    (h_mem : α ∈ successfulChallenges VC cs A x secParam comm_tuple) :
+    0 < successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α := by
+  classical
+  obtain ⟨_, h_pos⟩ := Finset.mem_filter.1 h_mem
+  exact h_pos
+
+lemma exists_successfulChallenge_of_heavyCommitment
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈ heavyCommitments VC cs A x secParam ε) :
+    ∃ α ∈ successfulChallenges VC cs A x secParam comm_tuple,
+      0 < successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α := by
+  classical
+  obtain ⟨α, h_pos⟩ :=
+    exists_successMassGivenCommitAndChallenge_pos_of_heavyCommitment (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (ε := ε) h_ε_pos h_mem
+  refine ⟨α, ?_, h_pos⟩
+  simpa [successfulChallenges] using h_pos
+
+lemma exists_transcript_of_successfulChallenge
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    {α : F}
+    (h_mem : α ∈ successfulChallenges VC cs A x secParam comm_tuple) :
+    ∃ t : Transcript F VC,
+      success_event VC cs x t ∧
+      transcriptCommitTuple VC t = comm_tuple ∧
+      t.view.alpha = α ∧
+      0 < (run_adversary_transcript (VC := VC) (cs := cs) A x secParam) t := by
+  classical
+  have h_pos :=
+    successfulChallenges_pos_of_mem (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (comm_tuple := comm_tuple) h_mem
+  obtain ⟨t, h_success, h_comm, h_alpha, h_run_pos⟩ :=
+    exists_success_transcript_of_successMassGivenCommitAndChallenge_pos (VC := VC)
+      (cs := cs) (A := A) (x := x) (secParam := secParam)
+      (comm_tuple := comm_tuple) (α := α) h_pos
+  exact ⟨t, h_success, h_comm, h_alpha, h_run_pos⟩
+
+lemma successfulChallenges_nonempty_of_heavyCommitment
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈ heavyCommitments VC cs A x secParam ε) :
+    (successfulChallenges VC cs A x secParam comm_tuple).Nonempty := by
+  classical
+  obtain ⟨α, hα_mem, -⟩ :=
+    exists_successfulChallenge_of_heavyCommitment (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_ε_pos h_mem
+  exact ⟨α, hα_mem⟩
+
+lemma commitChallengeMass_le_commitMass
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)
+    (α : F) :
+    commitChallengeMass VC cs A x secParam comm_tuple α ≤
+      commitMass VC cs A x secParam comm_tuple := by
+  classical
+  unfold commitChallengeMass commitMass
+  set p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam with hp
+  have h_pointwise :
+      (fun t =>
+          if transcriptCommitTuple VC t = comm_tuple ∧ t.view.alpha = α then p t else 0)
+        ≤ fun t => if transcriptCommitTuple VC t = comm_tuple then p t else 0 := by
+    intro t
+    by_cases hComm : transcriptCommitTuple VC t = comm_tuple
+    · by_cases hAlpha : t.view.alpha = α
+      · simp [hComm, hAlpha]
+      · simp [hComm, hAlpha]
+    · simp [hComm]
+  have h_le := ENNReal.tsum_le_tsum h_pointwise
+  simpa [hp]
+
+lemma successMassGivenCommitAndChallenge_eq_zero_of_not_mem_successfulChallenges
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)
+    (α : F)
+    (h_not : α ∉ successfulChallenges VC cs A x secParam comm_tuple) :
+    successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α = 0 := by
+  classical
+  have h_not_pos : ¬ 0 <
+      successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α := by
+    simpa [successfulChallenges] using h_not
+  have h_le_zero := not_lt.mp h_not_pos
+  exact le_antisymm h_le_zero bot_le
+
+lemma successMassGivenCommit_eq_sum_successfulChallenges
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) :
+    successMassGivenCommit VC cs A x secParam comm_tuple =
+      ∑ α ∈ successfulChallenges VC cs A x secParam comm_tuple,
+        successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α := by
+  classical
+  have h_branch :
+      ∀ α,
+        (if 0 <
+            successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α
+          then
+            successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α
+          else 0)
+          = successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α := by
+    intro α
+    by_cases h_pos :
+        0 < successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α
+    · simp [h_pos]
+    · have h_zero :
+        successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α = 0 := by
+        refine le_antisymm (not_lt.mp h_pos) bot_le
+      simp [h_zero]
+  have h_filtered :
+      ∑ α ∈ successfulChallenges VC cs A x secParam comm_tuple,
+          successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α
+        =
+          ∑ α ∈ (Finset.univ : Finset F),
+            (if
+                0 < successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α
+              then
+                successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α
+              else 0) := by
+    simpa [successfulChallenges] using
+      Finset.sum_filter (s := (Finset.univ : Finset F))
+        (f := fun α =>
+          successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α)
+        (p :=
+          fun α =>
+            0 < successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α)
+  have h_filtered' :
+      ∑ α ∈ successfulChallenges VC cs A x secParam comm_tuple,
+          successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α
+        =
+          ∑ α ∈ (Finset.univ : Finset F),
+            successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α := by
+    simpa [h_branch] using h_filtered
+  have h_total :=
+    successMassGivenCommit_eq_sum_successMassGivenCommitChallenge (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (comm_tuple := comm_tuple)
+  exact h_total.trans h_filtered'.symm
 
 lemma successMassGivenCommitAndChallenge_le_commitChallengeMass
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
@@ -1686,6 +2178,177 @@ lemma successMassGivenCommitAndChallenge_le_commitChallengeMass
     · simp [hSucc]
   have h_le := ENNReal.tsum_le_tsum h_pointwise
   simpa [hp] using h_le
+
+lemma successMassGivenCommitAndChallenge_le_commitMass
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)
+    (α : F) :
+    successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α ≤
+      commitMass VC cs A x secParam comm_tuple :=
+  (successMassGivenCommitAndChallenge_le_commitChallengeMass (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (comm_tuple := comm_tuple) (α := α)).trans
+    (commitChallengeMass_le_commitMass (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (comm_tuple := comm_tuple) (α := α))
+
+lemma successMassGivenCommit_le_card_successfulChallenges_smul_commitMass
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) :
+    successMassGivenCommit VC cs A x secParam comm_tuple ≤
+      (successfulChallenges VC cs A x secParam comm_tuple).card •
+        commitMass VC cs A x secParam comm_tuple := by
+  classical
+  have h_sum :=
+    successMassGivenCommit_eq_sum_successfulChallenges (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (comm_tuple := comm_tuple)
+  have h_le :
+      ∑ α ∈ successfulChallenges VC cs A x secParam comm_tuple,
+          successMassGivenCommitAndChallenge VC cs A x secParam comm_tuple α
+        ≤
+          ∑ α ∈ successfulChallenges VC cs A x secParam comm_tuple,
+            commitMass VC cs A x secParam comm_tuple :=
+    Finset.sum_le_sum fun α hα =>
+      successMassGivenCommitAndChallenge_le_commitMass (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) (comm_tuple := comm_tuple) (α := α)
+  have h_const :
+      ∑ α ∈ successfulChallenges VC cs A x secParam comm_tuple,
+          commitMass VC cs A x secParam comm_tuple
+        =
+          (successfulChallenges VC cs A x secParam comm_tuple).card •
+            commitMass VC cs A x secParam comm_tuple := by
+    simp [Finset.sum_const]
+  have h_bound := h_sum.trans_le (h_le.trans_eq h_const)
+  simpa using h_bound
+
+lemma successfulChallenges_card_ENNReal_ge_of_heavyCommitment
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+  (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈ heavyCommitments VC cs A x secParam ε) :
+    ENNReal.ofReal ε ≤
+      ((successfulChallenges VC cs A x secParam comm_tuple).card : ENNReal) := by
+  classical
+  set mass := commitMass VC cs A x secParam comm_tuple with h_mass_def
+  have h_heavy :=
+    (heavyCommitments_mem_iff (VC := VC) (cs := cs) (A := A) (x := x)
+        (secParam := secParam) (ε := ε) (comm_tuple := comm_tuple)).1 h_mem
+  have h_mass_pos : 0 < mass := by simpa [h_mass_def] using h_heavy.1
+  have h_mass_ne_zero : mass ≠ 0 := ne_of_gt h_mass_pos
+  have h_mass_le_one : mass ≤ (1 : ENNReal) :=
+    by simpa [h_mass_def] using
+      commitMass_le_one (VC := VC) (cs := cs) (A := A) (x := x) (secParam := secParam)
+        comm_tuple
+  have h_mass_ne_top : mass ≠ (⊤ : ENNReal) := by
+    have : mass < (⊤ : ENNReal) := lt_of_le_of_lt h_mass_le_one ENNReal.one_lt_top
+    exact (lt_top_iff_ne_top).1 this
+  have h_upper :=
+    successMassGivenCommit_le_card_successfulChallenges_smul_commitMass (VC := VC)
+      (cs := cs) (A := A) (x := x) (secParam := secParam) (comm_tuple := comm_tuple)
+  have h_lower := h_heavy.2
+  have h_main : ENNReal.ofReal ε * mass ≤
+      ((successfulChallenges VC cs A x secParam comm_tuple).card : ENNReal) * mass := by
+    have := le_trans h_lower h_upper
+    simpa [h_mass_def, nsmul_eq_mul, mul_comm, mul_left_comm, mul_assoc] using this
+  have h_mul :=
+    mul_le_mul' h_main (le_of_eq (rfl : mass⁻¹ = mass⁻¹))
+  have h_cancel : mass * mass⁻¹ = (1 : ENNReal) :=
+    ENNReal.mul_inv_cancel h_mass_ne_zero h_mass_ne_top
+  have h_left : (ENNReal.ofReal ε * mass) * mass⁻¹ = ENNReal.ofReal ε := by
+    simp [mul_assoc, h_cancel]
+  have h_right :
+      (((successfulChallenges VC cs A x secParam comm_tuple).card : ENNReal) * mass)
+          * mass⁻¹
+        = ((successfulChallenges VC cs A x secParam comm_tuple).card : ENNReal) := by
+    calc
+      (((successfulChallenges VC cs A x secParam comm_tuple).card : ENNReal) * mass) * mass⁻¹
+          = ((successfulChallenges VC cs A x secParam comm_tuple).card : ENNReal)
+              * (mass * mass⁻¹) := by
+                simp [mul_comm, mul_left_comm, mul_assoc]
+      _ = ((successfulChallenges VC cs A x secParam comm_tuple).card : ENNReal) * 1 := by
+        simp [h_cancel]
+      _ = ((successfulChallenges VC cs A x secParam comm_tuple).card : ENNReal) := by simp
+  simpa [h_left, h_right] using h_mul
+
+lemma successfulChallenges_card_ge_of_heavyCommitment
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈ heavyCommitments VC cs A x secParam ε) :
+    ε ≤ ((successfulChallenges VC cs A x secParam comm_tuple).card : ℝ) := by
+  classical
+  have h_card :=
+    successfulChallenges_card_ENNReal_ge_of_heavyCommitment (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (ε := ε) h_mem
+  have h_card' :
+      ENNReal.ofReal ε ≤ ENNReal.ofReal
+        ((successfulChallenges VC cs A x secParam comm_tuple).card : ℝ) := by
+    simpa using h_card
+  have h_nonneg : 0 ≤ ((successfulChallenges VC cs A x secParam comm_tuple).card : ℝ) := by
+    exact_mod_cast (successfulChallenges VC cs A x secParam comm_tuple).card.zero_le
+  have h_le := ENNReal.toReal_le_of_le_ofReal h_nonneg h_card'
+  have h_toReal : (ENNReal.ofReal ε).toReal = ε := by simp [h_ε_pos.le]
+  simpa [h_toReal] using h_le
+
+lemma heavyCommitment_witnesses_successfulChallenges
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈ heavyCommitments VC cs A x secParam ε) :
+    ∃ valid_challenges : Finset F,
+      (∀ α ∈ valid_challenges,
+        ∃ t : Transcript F VC,
+          success_event VC cs x t ∧
+          transcriptCommitTuple VC t = comm_tuple ∧
+          t.view.alpha = α ∧
+          0 < (run_adversary_transcript (VC := VC) (cs := cs) A x secParam) t) ∧
+      (valid_challenges.card : ℝ) ≥ ε := by
+  classical
+  refine ⟨successfulChallenges VC cs A x secParam comm_tuple, ?_, ?_⟩
+  · intro α hα
+    obtain ⟨t, h_success, h_comm, h_alpha, h_run_pos⟩ :=
+      exists_transcript_of_successfulChallenge (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) (comm_tuple := comm_tuple) (α := α) hα
+    exact ⟨t, h_success, h_comm, h_alpha, h_run_pos⟩
+  · exact successfulChallenges_card_ge_of_heavyCommitment (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) (ε := ε) h_ε_pos h_mem
+
+lemma heavyCommitment_scaled_witnesses
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) {ε : ℝ}
+    (h_ε_pos : 0 < ε)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_mem : comm_tuple ∈
+      heavyCommitments VC cs A x secParam (ε * (Fintype.card F : ℝ))) :
+    ∃ valid_challenges : Finset F,
+      (∀ α ∈ valid_challenges,
+        ∃ t : Transcript F VC,
+          success_event VC cs x t ∧
+          transcriptCommitTuple VC t = comm_tuple ∧
+          t.view.alpha = α) ∧
+      (valid_challenges.card : ℝ) ≥ ε * (Fintype.card F : ℝ) := by
+  classical
+  have h_card_nat : 0 < Fintype.card F := Fintype.card_pos
+  have h_card_pos : 0 < (Fintype.card F : ℝ) := by exact_mod_cast h_card_nat
+  have h_scaled_pos : 0 < ε * (Fintype.card F : ℝ) :=
+    mul_pos h_ε_pos h_card_pos
+  obtain ⟨valid_challenges, h_witness, h_card_ge⟩ :=
+    heavyCommitment_witnesses_successfulChallenges (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε * (Fintype.card F : ℝ))
+      h_scaled_pos h_mem
+  refine ⟨valid_challenges, ?_, ?_⟩
+  · intro α hα
+    obtain ⟨t, h_success, h_comm, h_alpha, _⟩ := h_witness α hα
+    exact ⟨t, h_success, h_comm, h_alpha⟩
+  · simpa [mul_comm, mul_left_comm, mul_assoc] using h_card_ge
 
 lemma successMassGivenCommitAndChallenge_le_run_adversary_commit_challenge
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
