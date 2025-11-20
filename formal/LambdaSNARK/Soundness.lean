@@ -258,11 +258,7 @@ theorem forking_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
       satisfies cs w ∧
       extractPublic cs.h_pub_le w = x ∧
       (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ ε^2 / 2 - 1 / (Fintype.card F : ℝ) := by
-  -- Step 1: Heavy commitments infrastructure.
-  obtain ⟨heavy_comm, h_heavy_mem⟩ :=
-    exists_heavyCommitment_of_successProbability_lt (VC := VC) (cs := cs) (A := A)
-      (x := x) (secParam := secParam) (ε := ε) h_success
-  -- TODO: upgrade `heavy_comm` to the combinatorial heavy-row witness used below.
+  -- Step 1: Positivity of the success mass follows from ε < successProbability (see infrastructure lemmas).
   have h_field_pos : (Fintype.card F : ℝ) > 0 := by
     have h_two : (2 : ℝ) ≤ (Fintype.card F : ℝ) := by
       exact_mod_cast h_field_size
