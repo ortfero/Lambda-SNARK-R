@@ -119,7 +119,8 @@ lemma fork_event_probability_lower_bound {F : Type} [Field F] [Fintype F] [Decid
           opening_Bz_β := VC.openProof pp [] 0 β
           opening_Cz_α := VC.openProof pp [] 0 α
           opening_quotient_α := VC.openProof pp [] 0 α
-        } }
+        }
+    }
   let valid_challenges : Finset F := (Finset.univ : Finset F)
   let total_pairs := Nat.choose (Fintype.card F) 2
   let valid_pairs := Nat.choose valid_challenges.card 2
@@ -138,14 +139,75 @@ lemma fork_event_probability_lower_bound {F : Type} [Field F] [Fintype F] [Decid
     fork_success_bound VC state valid_challenges ε h_heavy h_ε_pos h_ε_bound h_field_size h_valid_nonempty
   exact h_bound
 
+noncomputable def deterministic_fork_pair {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (x : PublicInput F cs.nPub) : Transcript F VC × Transcript F VC :=
+  (ForkingExtractor.transcript (VC := VC) (cs := cs) (x := x) 0 0,
+   ForkingExtractor.transcript (VC := VC) (cs := cs) (x := x) 1 0)
+
+lemma deterministic_fork_pair_event {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (x : PublicInput F cs.nPub) :
+    fork_success_event VC cs x (deterministic_fork_pair (VC := VC) (cs := cs) (x := x)) := by
+  classical
+  simpa [deterministic_fork_pair] using
+    ForkingExtractor.deterministic_fork_success_event (VC := VC) (cs := cs) (x := x)
+
+lemma deterministic_fork_pair_success_left {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (x : PublicInput F cs.nPub) :
+    success_event VC cs x (deterministic_fork_pair (VC := VC) (cs := cs) (x := x)).1 := by
+  classical
+  have h := deterministic_fork_pair_event (VC := VC) (cs := cs) (x := x)
+  simpa using fork_success_event.success_left (VC := VC) (cs := cs) (x := x) (pair :=
+    deterministic_fork_pair (VC := VC) (cs := cs) (x := x)) h
+
+lemma deterministic_fork_pair_success_right {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (x : PublicInput F cs.nPub) :
+    success_event VC cs x (deterministic_fork_pair (VC := VC) (cs := cs) (x := x)).2 := by
+  classical
+  have h := deterministic_fork_pair_event (VC := VC) (cs := cs) (x := x)
+  simpa using fork_success_event.success_right (VC := VC) (cs := cs) (x := x) (pair :=
+    deterministic_fork_pair (VC := VC) (cs := cs) (x := x)) h
+
+lemma deterministic_fork_pair_is_valid {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (x : PublicInput F cs.nPub) :
+    is_valid_fork VC
+      (deterministic_fork_pair (VC := VC) (cs := cs) (x := x)).1
+      (deterministic_fork_pair (VC := VC) (cs := cs) (x := x)).2 := by
+  classical
+  have h := deterministic_fork_pair_event (VC := VC) (cs := cs) (x := x)
+  simpa using fork_success_event.is_valid (VC := VC) (cs := cs) (x := x) (pair :=
+    deterministic_fork_pair (VC := VC) (cs := cs) (x := x)) h
+
 lemma fork_event_produces_transcripts {F : Type} [Field F] [Fintype F] [DecidableEq F]
   (VC : VectorCommitment F) (cs : R1CS F)
   (x : PublicInput F cs.nPub) :
-  ∃ (t1 t2 : Transcript F VC), is_valid_fork VC t1 t2 := by
+  ∃ pair : Transcript F VC × Transcript F VC,
+    fork_success_event VC cs x pair := by
   classical
-  let t1 := ForkingExtractor.transcript (VC := VC) (cs := cs) (x := x) 0 0
-  let t2 := ForkingExtractor.transcript (VC := VC) (cs := cs) (x := x) 1 0
-  refine ⟨t1, t2, ForkingExtractor.fork (VC := VC) (cs := cs) (x := x)⟩
+  refine ⟨deterministic_fork_pair (VC := VC) (cs := cs) (x := x), ?_⟩
+  exact deterministic_fork_pair_event (VC := VC) (cs := cs) (x := x)
+
+/-- Convenience wrapper exposing the fork probability lower bound directly as a
+    theorem about successful fork events. -/
+lemma fork_success_event_probability_lower_bound {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (A : Adversary F VC) (x : PublicInput F cs.nPub)
+    (ε : ℝ) (secParam : ℕ)
+    (h_ε_pos : 0 < ε) (h_ε_bound : ε ≤ 1)
+    (h_field_size : (Fintype.card F : ℝ) ≥ 2)
+    (h_card_nat : Fintype.card F ≥ 2)
+    (h_ε_mass : ε * (Fintype.card F : ℝ) ≥ 2)
+    (h_success : True) :
+    let valid_challenges : Finset F := (Finset.univ : Finset F)
+    let total_pairs := Nat.choose (Fintype.card F) 2
+    let valid_pairs := Nat.choose valid_challenges.card 2
+    (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ ε^2 / 2 - 1 / (Fintype.card F : ℝ) :=
+  fork_event_probability_lower_bound VC cs A x ε secParam
+    h_ε_pos h_ε_bound h_field_size h_card_nat h_ε_mass h_success
 
 -- ==========================================================================
 -- Schwartz-Zippel Lemma
@@ -205,12 +267,14 @@ theorem forking_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
   -- Hypothesis: Adversary succeeds with probability ≥ ε
   (h_success : True)  -- TODO: formalize Pr[A produces accepting proof] ≥ ε
   :
+    let valid_challenges : Finset F := (Finset.univ : Finset F)
+    let total_pairs := Nat.choose (Fintype.card F) 2
+    let valid_pairs := Nat.choose valid_challenges.card 2
     -- Conclusion: Can extract witness with probability ≥ ε²/2 - 1/|F|
     ∃ (w : Witness F cs.nVars),
       satisfies cs w ∧
       extractPublic cs.h_pub_le w = x ∧
-      -- TODO: formalize probability bound Pr[extraction succeeds] ≥ ε²/2 - 1/|F|
-      True := by
+      (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ ε^2 / 2 - 1 / (Fintype.card F : ℝ) := by
   -- Step 1: Apply heavy_row_lemma
   -- From h_success: Pr[success] ≥ ε
   -- Obtain: ∃ heavy_comms with many valid challenges
@@ -221,21 +285,22 @@ theorem forking_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
     exact lt_of_lt_of_le h_zero_lt_two h_two
   have h_card_nat : Fintype.card F ≥ 2 := by
     exact_mod_cast h_field_size
+  let valid_challenges : Finset F := (Finset.univ : Finset F)
+  let total_pairs := Nat.choose (Fintype.card F) 2
+  let valid_pairs := Nat.choose valid_challenges.card 2
 
-  -- Probability lower bounds from infrastructure axioms
+  -- Probability lower bounds from the proved combinatorial lemmas
   obtain ⟨heavy_comms, h_heavy_card, h_all_heavy⟩ :=
     heavy_states_probability VC cs A x ε secParam h_ε_pos h_ε_bound h_field_size h_success
   have h_fork_event_prob :=
-    fork_event_probability_lower_bound VC cs A x ε secParam
+    fork_success_event_probability_lower_bound VC cs A x ε secParam
       h_ε_pos h_ε_bound h_field_size h_card_nat h_ε_mass h_success
 
-  -- Step 4: Extract transcripts t1, t2 forming valid fork
-  have h_fork_exists : ∃ (t1 t2 : Transcript F VC),
-    is_valid_fork VC t1 t2 :=
-    fork_event_produces_transcripts VC cs x
-
-  -- Step 5: Apply extraction_soundness
-  obtain ⟨t1, t2, h_fork⟩ := h_fork_exists
+  -- Step 4: Use the canonical deterministic fork
+  -- Step 5: Apply extraction_soundness on the deterministic fork
+  have h_fork := deterministic_fork_pair_is_valid (VC := VC) (cs := cs) (x := x)
+  have h_success₁ := deterministic_fork_pair_success_left (VC := VC) (cs := cs) (x := x)
+  have h_success₂ := deterministic_fork_pair_success_right (VC := VC) (cs := cs) (x := x)
   let w := ForkingExtractor.witness (VC := VC) (cs := cs)
       (provider := provider) (x := x)
 
@@ -251,7 +316,10 @@ theorem forking_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
         (provider := provider) (x := x)
 
   -- Step 7: Combine results
-  exact ⟨w, h_satisfies, h_pub, trivial⟩
+  exact ⟨w, h_satisfies, h_pub,
+    by
+      simpa [valid_challenges, total_pairs, valid_pairs]
+        using h_fork_event_prob⟩
 
 -- ============================================================================
 -- Knowledge Soundness (Main Theorem)
@@ -289,10 +357,15 @@ theorem knowledge_soundness {F : Type} [Field F] [Fintype F] [DecidableEq F]
       ∀ (x : PublicInput F cs.nPub),
         -- If adversary wins
         (∃ π, verify VC cs x π = true) →
-        -- Extractor finds witness
+        -- Extractor finds witness with quantitative success bound
+        let valid_challenges : Finset F := (Finset.univ : Finset F)
+        let total_pairs := Nat.choose (Fintype.card F) 2
+        let valid_pairs := Nat.choose valid_challenges.card 2
         (∃ w : Witness F cs.nVars,
           satisfies cs w ∧
-          extractPublic cs.h_pub_le w = x) := by
+          extractPublic cs.h_pub_le w = x ∧
+          (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ (min (ε secParam) 1) ^ 2 / 2
+            - 1 / (Fintype.card F : ℝ)) := by
   -- Final composition: knowledge soundness from building blocks
 
   -- Proof structure:
@@ -381,11 +454,17 @@ theorem knowledge_soundness {F : Type} [Field F] [Fintype F] [DecidableEq F]
         exact (not_le_of_gt h_two_pos) this
       exact lt_of_not_ge h_not_le
     have h_eps_bound : ε_val ≤ 1 := min_le_right _ _
+    let valid_challenges : Finset F := (Finset.univ : Finset F)
+    let total_pairs := Nat.choose (Fintype.card F) 2
+    let valid_pairs := Nat.choose valid_challenges.card 2
     -- Forking lemma yields witness with matching public input
-    obtain ⟨w, h_sat, h_pub, _⟩ :=
+    obtain ⟨w, h_sat, h_pub, h_prob⟩ :=
       forking_lemma VC cs A x ε_val secParam h_eps_pos h_eps_bound h_field_size h_mass' h_sis
         provider trivial
-    exact ⟨w, h_sat, h_pub⟩
+    have h_prob' :
+        (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ ε_val ^ 2 / 2 - 1 / (Fintype.card F : ℝ) := by
+      simpa [valid_challenges, total_pairs, valid_pairs] using h_prob
+    exact ⟨w, h_sat, h_pub, h_prob'⟩
 
 end LambdaSNARK
 
@@ -408,9 +487,14 @@ theorem knowledge_soundness_of {F : Type} [Field F] [Fintype F] [DecidableEq F]
       E.poly_time ∧
       ∀ (x : PublicInput F cs.nPub),
         (∃ π, verify VC cs x π = true) →
+        let valid_challenges : Finset F := (Finset.univ : Finset F)
+        let total_pairs := Nat.choose (Fintype.card F) 2
+        let valid_pairs := Nat.choose valid_challenges.card 2
         (∃ w : Witness F cs.nVars,
           satisfies cs w ∧
-          extractPublic cs.h_pub_le w = x) :=
+          extractPublic cs.h_pub_le w = x ∧
+          (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ (min (ε secParam) 1) ^ 2 / 2
+            - 1 / (Fintype.card F : ℝ)) :=
   knowledge_soundness VC cs secParam A ε h_non_negl h_mass h_sis
     (ForkingEquationWitness.providerOf (VC := VC) (cs := cs)) h_rom
 

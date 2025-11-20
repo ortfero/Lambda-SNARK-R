@@ -9,6 +9,7 @@ import LambdaSNARK.Polynomial
 import LambdaSNARK.Constraints
 import Mathlib.Probability.ProbabilityMassFunction.Basic
 import Mathlib.Probability.ProbabilityMassFunction.Monad
+import Mathlib.Probability.ProbabilityMassFunction.Constructions
 import Mathlib.Data.Finset.Card
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Data.Nat.Choose.Basic
@@ -889,6 +890,85 @@ lemma fork_transcripts_support_is_valid_fork
 -- Heavy Row Lemma (Forking Core)
 -- ============================================================================
 
+/-- Extract the commitment tuple carried by a transcript. -/
+def transcriptCommitTuple {F : Type} [CommRing F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (t : Transcript F VC) :
+    VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment :=
+  (t.comm_Az, t.comm_Bz, t.comm_Cz, t.comm_quotient)
+
+/-- Extract both the commitment tuple and challenge from a transcript. -/
+def transcriptCommitChallenge {F : Type} [CommRing F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (t : Transcript F VC) :
+    (VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F :=
+  (transcriptCommitTuple VC t, t.view.alpha)
+
+/-- Distribution over commitment tuples produced in the first adversary run. -/
+noncomputable def run_adversary_commit_tuple {F : Type} [CommRing F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (A : Adversary F VC) (x : PublicInput F cs.nPub)
+    (secParam : ℕ) :
+    PMF (VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) :=
+  PMF.map (transcriptCommitTuple VC)
+    (run_adversary_transcript (VC := VC) (cs := cs) A x secParam)
+
+/-- Distribution over `(commitment tuple, challenge)` pairs seen in the first adversary run. -/
+noncomputable def run_adversary_commit_challenge {F : Type} [CommRing F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (A : Adversary F VC) (x : PublicInput F cs.nPub)
+    (secParam : ℕ) :
+    PMF ((VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F) :=
+  PMF.map (transcriptCommitChallenge VC)
+    (run_adversary_transcript (VC := VC) (cs := cs) A x secParam)
+
+lemma mem_support_run_adversary_commit_tuple {F : Type} [CommRing F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (A : Adversary F VC) (x : PublicInput F cs.nPub)
+    (secParam : ℕ)
+    {commTuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment} :
+    commTuple ∈
+        (run_adversary_commit_tuple VC cs A x secParam).support ↔
+      ∃ t ∈ (run_adversary_transcript (VC := VC) (cs := cs) A x secParam).support,
+        transcriptCommitTuple VC t = commTuple := by
+  classical
+  unfold run_adversary_commit_tuple
+  constructor
+  · intro h_mem
+    obtain ⟨t, h_t, h_eq⟩ :=
+      (PMF.mem_support_map_iff (f := transcriptCommitTuple VC)
+          (p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam)
+          (b := commTuple)).1 h_mem
+    exact ⟨t, h_t, h_eq⟩
+  · rintro ⟨t, h_t, h_eq⟩
+    exact
+      (PMF.mem_support_map_iff (f := transcriptCommitTuple VC)
+          (p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam)
+          (b := commTuple)).2
+        ⟨t, h_t, h_eq⟩
+
+lemma mem_support_run_adversary_commit_challenge {F : Type} [CommRing F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (A : Adversary F VC) (x : PublicInput F cs.nPub)
+    (secParam : ℕ)
+    {cc : (VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F} :
+    cc ∈ (run_adversary_commit_challenge VC cs A x secParam).support ↔
+      ∃ t ∈ (run_adversary_transcript (VC := VC) (cs := cs) A x secParam).support,
+        transcriptCommitChallenge VC t = cc := by
+  classical
+  unfold run_adversary_commit_challenge
+  constructor
+  · intro h_mem
+    obtain ⟨t, h_t, h_eq⟩ :=
+      (PMF.mem_support_map_iff (f := transcriptCommitChallenge VC)
+          (p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam)
+          (b := cc)).1 h_mem
+    exact ⟨t, h_t, h_eq⟩
+  · rintro ⟨t, h_t, h_eq⟩
+    exact
+      (PMF.mem_support_map_iff (f := transcriptCommitChallenge VC)
+          (p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam)
+          (b := cc)).2
+        ⟨t, h_t, h_eq⟩
+
 /-- Success event: adversary produces accepting proof -/
 def success_event {F : Type} [Field F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F) (x : PublicInput F cs.nPub)
@@ -913,6 +993,69 @@ noncomputable def successProbability {F : Type} [Field F] [Fintype F] [Decidable
   ((run_adversary_transcript (VC := VC) (cs := cs) A x secParam).toOuterMeasure
       {t | success_event VC cs x t}).toReal
 
+/-- Масса события успеха в распределении первой попытки (значение в `ENNReal`). -/
+noncomputable def successMass {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+  (x : PublicInput F cs.nPub) (secParam : ℕ) : ENNReal :=
+  by
+    classical
+    let p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam
+    exact ∑' t, (if success_event VC cs x t then p t else 0)
+
+noncomputable def successMassGivenCommit {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) : ENNReal :=
+  by
+    classical
+    let p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam
+    exact ∑' t,
+      (if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm_tuple then p t else 0)
+
+lemma successProbability_toReal_successMass {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) :
+    successProbability VC cs A x secParam =
+      ENNReal.toReal (successMass VC cs A x secParam) := by
+  classical
+  unfold successProbability successMass
+  set p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam with hp
+  have h_outer := p.toOuterMeasure_apply {t : Transcript F VC | success_event VC cs x t}
+  have h_indicator :
+      (∑' t, Set.indicator {t : Transcript F VC | success_event VC cs x t} p t)
+        = ∑' t, ite (success_event VC cs x t) (p t) 0 := by
+    refine tsum_congr ?_
+    intro t
+    by_cases h_t : success_event VC cs x t
+    · simp [Set.indicator, h_t]
+    · simp [Set.indicator, h_t]
+  have h_indicator' :
+      ∑' t, ite (success_event VC cs x t) (p t) 0
+        = ∑' t, (if success_event VC cs x t then p t else 0) := by
+    simp
+  simpa [hp, h_indicator, h_indicator'] using congrArg ENNReal.toReal h_outer
+
+lemma successMassGivenCommit_le_successMass {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) :
+    successMassGivenCommit VC cs A x secParam comm_tuple ≤
+      successMass VC cs A x secParam := by
+  classical
+  unfold successMass successMassGivenCommit
+  set p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam with hp
+  have h_pointwise :
+      (fun t => if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm_tuple then p t else 0)
+        ≤ fun t => if success_event VC cs x t then p t else 0 := by
+    intro t
+    by_cases hSucc : success_event VC cs x t
+    · by_cases hComm : transcriptCommitTuple VC t = comm_tuple
+      · simp [hSucc, hComm]
+      · have : (0 : ENNReal) ≤ p t := bot_le
+        simp [hSucc, hComm, this]
+    · simp [hSucc]
+  simpa [hp] using ENNReal.tsum_le_tsum h_pointwise
+
 lemma successProbability_nonneg {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
     (x : PublicInput F cs.nPub) (secParam : ℕ) :
@@ -929,20 +1072,87 @@ lemma successProbability_le_one {F : Type} [Field F] [Fintype F] [DecidableEq F]
   set p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam with hp
   set S := {t : Transcript F VC | success_event VC cs x t} with hS
   set U : Set (Transcript F VC) := Set.univ
-  have h_subset : S ∩ p.support ⊆ U := by
-    intro t _
-    exact Set.mem_univ _
   have h_le : p.toOuterMeasure S ≤ p.toOuterMeasure U :=
-    p.toOuterMeasure_mono h_subset
-  have h_support_subset : p.support ⊆ U := by
-    intro t _
-    trivial
+    p.toOuterMeasure_mono (fun t _ => Set.mem_univ _)
   have h_univ : p.toOuterMeasure U = 1 := by
+    have h_support_subset : p.support ⊆ U := fun _t _ => trivial
     simpa [U] using (p.toOuterMeasure_apply_eq_one_iff (s := U)).2 h_support_subset
   have h_le_one : p.toOuterMeasure S ≤ ENNReal.ofReal 1 := by
     simpa [U, h_univ, ENNReal.ofReal_one] using h_le
   have h_toReal := ENNReal.toReal_le_of_le_ofReal zero_le_one h_le_one
   simpa [successProbability, hp, hS, U, ENNReal.ofReal_one] using h_toReal
+
+/-- Разложение общей массы успеха на сумму условных масс по кортежам коммитов. -/
+lemma successMass_eq_tsum_successMassGivenCommit {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) :
+    successMass VC cs A x secParam =
+      ∑' comm_tuple,
+        successMassGivenCommit VC cs A x secParam comm_tuple := by
+  classical
+  set p := run_adversary_transcript (VC := VC) (cs := cs) A x secParam with hp
+  have h_pointwise :
+      ∀ t : Transcript F VC,
+        (if success_event VC cs x t then p t else 0)
+          = ∑' comm,
+              (if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm then p t else 0) := by
+    intro t
+    by_cases hSucc : success_event VC cs x t
+    · have h_single :
+        ∑' comm,
+          (if comm = transcriptCommitTuple VC t then p t else 0) = p t := by
+        refine (tsum_eq_single (transcriptCommitTuple VC t)
+          (fun comm hne => if_neg hne)).trans ?_
+        simp
+      have h_sum :
+          ∑' comm,
+              (if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm then p t else 0)
+                = p t := by
+        have h_congr :
+            ∑' comm,
+                (if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm then p t else 0)
+              = ∑' comm,
+                  (if comm = transcriptCommitTuple VC t then p t else 0) := by
+          refine tsum_congr ?_
+          intro comm
+          simp [hSucc, eq_comm]
+        exact h_congr.trans h_single
+      simpa [hSucc] using h_sum.symm
+    · simp [hSucc]
+  have h_split :
+      ∑' t, (if success_event VC cs x t then p t else 0)
+        = ∑' t,
+            ∑' comm,
+              (if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm then p t else 0) := by
+    refine tsum_congr ?_
+    intro t
+    exact h_pointwise t
+  have h_commute :=
+    ENNReal.tsum_comm
+      (f := fun comm (t : Transcript F VC) =>
+        if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm then p t else 0)
+  have h_swapped :
+      ∑' t,
+          ∑' comm,
+            (if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm then p t else 0)
+        = ∑' comm,
+            ∑' t,
+              (if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm then p t else 0) := by
+    simpa using h_commute.symm
+  have h_final := h_split.trans h_swapped
+  have h_left : successMass VC cs A x secParam
+      = ∑' t, (if success_event VC cs x t then p t else 0) := by
+    simp [successMass, hp]
+  have h_right :
+      ∑' comm_tuple,
+          successMassGivenCommit VC cs A x secParam comm_tuple
+        = ∑' comm,
+            ∑' t,
+              (if success_event VC cs x t ∧ transcriptCommitTuple VC t = comm then p t else 0) := by
+    refine tsum_congr ?_
+    intro comm
+    simp [successMassGivenCommit, hp]
+  exact h_left.trans (h_final.trans h_right.symm)
 
 lemma fork_success_event.success_left {F : Type} [Field F] [DecidableEq F]
   (VC : VectorCommitment F) (cs : R1CS F) (x : PublicInput F cs.nPub)
@@ -1019,7 +1229,7 @@ def is_heavy_commitment {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (∀ α ∈ valid_challenges,
       ∃ t : Transcript F VC,
         success_event VC cs x t ∧
-        (t.comm_Az, t.comm_Bz, t.comm_Cz, t.comm_quotient) = comm_tuple ∧
+        transcriptCommitTuple VC t = comm_tuple ∧
         t.view.alpha = α) ∧
     (valid_challenges.card : ℝ) ≥ ε * (Fintype.card F : ℝ)
 
