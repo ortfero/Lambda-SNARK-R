@@ -205,6 +205,46 @@ lemma heavyRandomnessSet_finite (ε : ℝ) :
   intro rand _
   trivial
 
+noncomputable def heavyRandomnessFinset (ε : ℝ) :
+    Finset (Fin secParam.succ) :=
+  (heavyRandomnessSet_finite (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε)).toFinset
+
+lemma mem_heavyRandomnessFinset (ε : ℝ) {rand : Fin secParam.succ} :
+    rand ∈ heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) ε ↔
+      commitTupleOfRandomness VC cs A x secParam rand ∈
+        heavyCommitments VC cs A x secParam ε := by
+  classical
+  unfold heavyRandomnessFinset
+  simp [heavyRandomnessSet]
+
+lemma heavyRandomnessFinset_card (ε : ℝ) :
+    (heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) ε).card =
+      (heavyRandomnessSet (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) ε).ncard := by
+  classical
+  have := Set.ncard_eq_toFinset_card
+    (s := heavyRandomnessSet (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) ε)
+    (hs := heavyRandomnessSet_finite (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε))
+  simpa [heavyRandomnessFinset]
+    using this.symm
+
+lemma heavyRandomnessFinset_card_cast (ε : ℝ) :
+    ((heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) ε).card : ℝ)
+      = (Set.ncard
+          (heavyRandomnessSet (VC := VC) (cs := cs) (A := A)
+            (x := x) (secParam := secParam) ε) : ℝ) := by
+  classical
+  have h_card :=
+    heavyRandomnessFinset_card (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε)
+  simpa using congrArg (fun n : ℕ => (n : ℝ)) h_card
+
 noncomputable def lightCommitMass (ε : ℝ) : ENNReal := by
   classical
   exact ∑' comm_tuple,
@@ -1536,6 +1576,76 @@ lemma heavyRandomness_card_lower_bound
       using h_mul
   exact h_goal
 
+lemma heavyRandomness_finset_lower_bound
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ)
+    (h_nonneg : 0 ≤ ε) :
+    (successProbability VC cs A x secParam - ε) * (secParam.succ : ℝ) ≤
+      (heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) ε).card := by
+  classical
+  have h :=
+    heavyRandomness_card_lower_bound (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_nonneg
+  have h_cast :=
+    heavyRandomnessFinset_card_cast (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε)
+  simpa [h_cast]
+    using h
+
+/-- Ненулевая прибавка к вероятности успеха гарантирует существование тяжёлой случайности. -/
+lemma heavyRandomnessFinset_nonempty_of_successProbability_gt
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ)
+    (h_nonneg : 0 ≤ ε)
+    (h_gap : ε < successProbability VC cs A x secParam) :
+    (heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) ε).Nonempty := by
+  classical
+  have h_lower :=
+    heavyRandomness_finset_lower_bound (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_nonneg
+  have h_prod_pos :
+      0 < (successProbability VC cs A x secParam - ε) * (secParam.succ : ℝ) := by
+    have h_diff_pos :
+        0 < successProbability VC cs A x secParam - ε :=
+      sub_pos.mpr h_gap
+    have h_succ_pos : 0 < (secParam.succ : ℝ) := by
+      exact_mod_cast Nat.succ_pos secParam
+    exact mul_pos h_diff_pos h_succ_pos
+  have h_card_real_pos :
+      0 < ((heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) ε).card : ℝ) :=
+    lt_of_lt_of_le h_prod_pos h_lower
+  have h_card_pos :
+      0 < (heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) ε).card := by
+    exact_mod_cast h_card_real_pos
+  exact Finset.card_pos.mp h_card_pos
+
+/-- Существует конкретная случайность, делающая коммит тяжелым, если вероятность успеха превосходит ε. -/
+lemma exists_heavyRandomness_of_successProbability_gt
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ)
+    (h_nonneg : 0 ≤ ε)
+    (h_gap : ε < successProbability VC cs A x secParam) :
+    ∃ rand : Fin secParam.succ,
+      commitTupleOfRandomness VC cs A x secParam rand ∈
+        heavyCommitments VC cs A x secParam ε := by
+  classical
+  obtain ⟨rand, h_rand⟩ :=
+    heavyRandomnessFinset_nonempty_of_successProbability_gt (VC := VC)
+      (cs := cs) (A := A) (x := x) (secParam := secParam) (ε := ε)
+      h_nonneg h_gap
+  refine ⟨rand, ?_⟩
+  have h_mem :=
+    (mem_heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε)).1 h_rand
+  exact h_mem
+
 
 lemma exists_success_transcript_of_successProbability_lt
   {ε : ℝ}
@@ -2133,6 +2243,36 @@ lemma heavyCommitment_witnesses_successfulChallenges
     exact ⟨t, h_success, h_comm, h_alpha, h_run_pos⟩
   · exact successfulChallenges_card_ge_of_heavyCommitment (VC := VC) (cs := cs) (A := A)
         (x := x) (secParam := secParam) (ε := ε) h_ε_pos h_mem
+
+lemma exists_heavyRandomness_successfulChallenge_of_successProbability_gt
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ)
+    (h_pos : 0 < ε)
+    (h_gap : ε < successProbability VC cs A x secParam) :
+    ∃ (rand : Fin secParam.succ) (α : F) (t : Transcript F VC),
+      success_event VC cs x t ∧
+      transcriptCommitTuple VC t =
+        commitTupleOfRandomness VC cs A x secParam rand ∧
+      t.view.alpha = α ∧
+      0 < (run_adversary_transcript (VC := VC) (cs := cs) A x secParam) t := by
+  classical
+  have h_nonneg : 0 ≤ ε := le_of_lt h_pos
+  obtain ⟨rand, h_heavy_rand⟩ :=
+    exists_heavyRandomness_of_successProbability_gt (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_nonneg h_gap
+  have h_witness :=
+    heavyCommitment_witnesses_successfulChallenges (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_pos h_heavy_rand
+  rcases h_witness with ⟨valid_challenges, h_valid, h_card⟩
+  have h_card_pos_real :
+      0 < (valid_challenges.card : ℝ) := lt_of_lt_of_le h_pos h_card
+  have h_card_pos : 0 < valid_challenges.card := by
+    exact_mod_cast h_card_pos_real
+  obtain ⟨α, hα_mem⟩ := Finset.card_pos.mp h_card_pos
+  obtain ⟨t, h_success, h_comm, h_alpha, h_run_pos⟩ := h_valid α hα_mem
+  refine ⟨rand, α, t, h_success, ?_, h_alpha, h_run_pos⟩
+  simpa using h_comm
 
 lemma heavyCommitment_scaled_witnesses
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
