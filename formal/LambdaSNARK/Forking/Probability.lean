@@ -60,6 +60,37 @@ lemma map_map_comp {α β γ} (μ : PMF α) (f : α → β) (g : β → γ) :
         _ = PMF.map (g ∘ f) μ := by
           simpa [Function.comp] using bind_pure_map (μ := μ) (f := g ∘ f)
 
+lemma bind_const {α β} (μ : PMF α) (ν : PMF β) :
+    PMF.bind μ (fun _ => ν) = ν := by
+  classical
+  ext b
+  simp
+
+lemma bind_pure {α} [DecidableEq α] (μ : PMF α) :
+    PMF.bind μ (fun a => PMF.pure a) = μ := by
+  classical
+  ext a
+  simp
+
+lemma map_const {α β} [DecidableEq β] (μ : PMF α) (b : β) :
+    PMF.map (fun _ : α => b) μ = PMF.pure b := by
+  classical
+  have h_map :=
+    (bind_pure_map (μ := μ) (f := fun _ : α => b)).symm
+  have h_bind := bind_const (μ := μ) (ν := PMF.pure b)
+  simpa using h_map.trans h_bind
+
+lemma map_id {α} [DecidableEq α] (μ : PMF α) :
+    PMF.map (fun a : α => a) μ = μ := by
+  classical
+  have h_map :=
+    (bind_pure_map (μ := μ) (f := fun a : α => a)).symm
+  have h_bind := bind_pure (μ := μ)
+  simpa using h_map.trans h_bind
+
+lemma map_id' {α} [DecidableEq α] (μ : PMF α) : PMF.map (id : α → α) μ = μ := by
+  simpa [id] using map_id (μ := μ)
+
 end PMF
 
 section SingleRun
@@ -320,6 +351,168 @@ noncomputable def run_adversary_commit_challenge :
     PMF ((VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F) :=
   PMF.map (transcriptCommitChallenge VC)
     (run_adversary_transcript (VC := VC) (cs := cs) A x secParam)
+
+/-- Distribution pairing the first-run commitment tuple with an independent uniformly
+    sampled challenge.  This models the random-oracle experiment where the challenge is
+    drawn only after the commitment phase has finished. -/
+noncomputable def run_adversary_commit_uniform_challenge
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) :
+    PMF ((VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F) := by
+  classical
+  refine PMF.bind (run_adversary_commit_tuple (VC := VC) (cs := cs) A x secParam) ?_
+  intro comm
+  exact PMF.map (fun α : F => (comm, α)) (uniform_pmf : PMF F)
+
+lemma run_adversary_commit_uniform_challenge_fst
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    [DecidableEq (VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)] :
+    PMF.map Prod.fst
+        (run_adversary_commit_uniform_challenge VC cs A x secParam)
+      = run_adversary_commit_tuple VC cs A x secParam := by
+  classical
+  have h_map :=
+    (PMF.bind_pure_map
+      (μ := run_adversary_commit_uniform_challenge VC cs A x secParam)
+      (f := Prod.fst)).symm
+  have h_inner :
+      ∀ comm : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment,
+        PMF.bind (PMF.map (fun α : F => (comm, α)) (uniform_pmf : PMF F))
+            (fun pair : ((VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F) =>
+              PMF.pure pair.1)
+          = PMF.pure comm := by
+    intro comm
+    have h_bind :=
+      PMF.bind_pure_map
+        (μ := PMF.map (fun α : F => (comm, α)) (uniform_pmf : PMF F))
+        (f := Prod.fst)
+    have h_map_pure :
+        PMF.map Prod.fst
+            (PMF.map (fun α : F => (comm, α)) (uniform_pmf : PMF F))
+          = PMF.pure comm := by
+      simpa [Function.comp, PMF.map_const]
+        using PMF.map_map_comp
+          (μ := (uniform_pmf : PMF F))
+          (f := fun α : F => (comm, α))
+          (g := Prod.fst)
+    exact h_bind.trans h_map_pure
+  calc
+    PMF.map Prod.fst
+        (run_adversary_commit_uniform_challenge VC cs A x secParam)
+        = PMF.bind
+            (run_adversary_commit_uniform_challenge VC cs A x secParam)
+            (fun pair : ((VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F) =>
+              PMF.pure pair.1) := h_map
+    _ = PMF.bind (run_adversary_commit_tuple VC cs A x secParam)
+            (fun comm =>
+              PMF.bind (PMF.map (fun α : F => (comm, α)) (uniform_pmf : PMF F))
+                (fun pair : ((VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F) =>
+                  PMF.pure pair.1)) := by
+          simp [run_adversary_commit_uniform_challenge, PMF.bind_bind]
+    _ = PMF.bind (run_adversary_commit_tuple VC cs A x secParam)
+            (fun comm => PMF.pure comm) := by
+          simp [h_inner]
+    _ = run_adversary_commit_tuple VC cs A x secParam := by
+          exact PMF.bind_pure
+            (run_adversary_commit_tuple (VC := VC) (cs := cs) A x secParam)
+
+lemma run_adversary_commit_uniform_challenge_snd
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) :
+    PMF.map Prod.snd
+        (run_adversary_commit_uniform_challenge VC cs A x secParam)
+      = (uniform_pmf : PMF F) := by
+  classical
+  have h_map :=
+    (PMF.bind_pure_map
+      (μ := run_adversary_commit_uniform_challenge VC cs A x secParam)
+      (f := Prod.snd)).symm
+  have h_inner :
+      ∀ comm : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment,
+        PMF.bind (PMF.map (fun α : F => (comm, α)) (uniform_pmf : PMF F))
+            (fun pair : ((VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F) =>
+              PMF.pure pair.2)
+          = (uniform_pmf : PMF F) := by
+    intro comm
+    have h_bind :=
+      PMF.bind_pure_map
+        (μ := PMF.map (fun α : F => (comm, α)) (uniform_pmf : PMF F))
+        (f := Prod.snd)
+    have h_map_id :
+        PMF.map Prod.snd
+            (PMF.map (fun α : F => (comm, α)) (uniform_pmf : PMF F))
+          = (uniform_pmf : PMF F) := by
+      simpa [Function.comp, id, PMF.map_id']
+        using PMF.map_map_comp
+          (μ := (uniform_pmf : PMF F))
+          (f := fun α : F => (comm, α))
+          (g := Prod.snd)
+    exact h_bind.trans h_map_id
+  calc
+    PMF.map Prod.snd
+        (run_adversary_commit_uniform_challenge VC cs A x secParam)
+        = PMF.bind
+            (run_adversary_commit_uniform_challenge VC cs A x secParam)
+            (fun pair : ((VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F) =>
+              PMF.pure pair.2) := h_map
+    _ = PMF.bind (run_adversary_commit_tuple VC cs A x secParam)
+            (fun comm =>
+              PMF.bind (PMF.map (fun α : F => (comm, α)) (uniform_pmf : PMF F))
+                (fun pair : ((VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) × F) =>
+                  PMF.pure pair.2)) := by
+          simp [run_adversary_commit_uniform_challenge, PMF.bind_bind]
+    _ = PMF.bind (run_adversary_commit_tuple VC cs A x secParam)
+            (fun _ => (uniform_pmf : PMF F)) := by
+          simp [h_inner]
+    _ = (uniform_pmf : PMF F) := by
+          exact PMF.bind_const
+            (run_adversary_commit_tuple (VC := VC) (cs := cs) A x secParam)
+            (uniform_pmf : PMF F)
+
+lemma run_adversary_commit_uniform_challenge_apply
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    [DecidableEq (VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)]
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)
+    (α : F) :
+    run_adversary_commit_uniform_challenge VC cs A x secParam (comm_tuple, α)
+      = run_adversary_commit_tuple VC cs A x secParam comm_tuple *
+          (uniform_pmf : PMF F) α := by
+  classical
+  have h_map :
+      ∀ comm : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment,
+        (PMF.map (fun β : F => (comm, β)) (uniform_pmf : PMF F))
+            (comm_tuple, α)
+          = (if comm = comm_tuple then (uniform_pmf : PMF F) α else 0) := by
+    intro comm
+    by_cases h_comm : comm = comm_tuple
+    · subst h_comm
+      simp [PMF.map_apply, Prod.mk.injEq, tsum_fintype]
+    ·
+      have h_comm' : comm_tuple ≠ comm := by simpa [eq_comm] using h_comm
+      simp [PMF.map_apply, Prod.mk.injEq, h_comm, h_comm']
+  have h_bind :
+      run_adversary_commit_uniform_challenge VC cs A x secParam (comm_tuple, α)
+        = ∑' comm,
+            run_adversary_commit_tuple VC cs A x secParam comm *
+              (if comm = comm_tuple then (uniform_pmf : PMF F) α else 0) := by
+    simp [run_adversary_commit_uniform_challenge, PMF.bind_apply, h_map]
+  have h_sum :
+      ∑' comm,
+          run_adversary_commit_tuple VC cs A x secParam comm *
+            (if comm = comm_tuple then (uniform_pmf : PMF F) α else 0)
+        = run_adversary_commit_tuple VC cs A x secParam comm_tuple *
+            (uniform_pmf : PMF F) α := by
+    refine (tsum_eq_single comm_tuple fun comm h_comm => ?_).trans ?_
+    · simp [h_comm]
+    · simp
+  exact h_bind.trans h_sum
+
 
 lemma run_adversary_eq_map_adversarySample
     {F : Type} [CommRing F] [Fintype F] [DecidableEq F]
@@ -618,6 +811,88 @@ lemma commitMass_eq_uniform_randomness_sum
           (uniform_pmf : PMF (Fin (secParam.succ)))) comm_tuple := h_eval
     _ = ∑ rand : Fin secParam.succ,
           commitSeedWeight VC cs A x secParam comm_tuple rand := h_uniform
+
+lemma run_adversary_commit_uniform_challenge_apply_eq_commitMass
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    [DecidableEq (VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)]
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)
+    (α : F) :
+    run_adversary_commit_uniform_challenge VC cs A x secParam (comm_tuple, α)
+      = commitMass VC cs A x secParam comm_tuple *
+          (uniform_pmf : PMF F) α := by
+  simpa [commitMass_eq_run_adversary_commit_tuple (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (comm_tuple := comm_tuple)]
+    using run_adversary_commit_uniform_challenge_apply
+      (VC := VC) (cs := cs) (A := A) (x := x) (secParam := secParam)
+      (comm_tuple := comm_tuple) (α := α)
+
+lemma tsum_run_adversary_commit_uniform_challenge_over_challenges
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    [DecidableEq (VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)]
+    (comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment) :
+    ∑' α, run_adversary_commit_uniform_challenge VC cs A x secParam (comm_tuple, α)
+      = commitMass VC cs A x secParam comm_tuple := by
+  classical
+  have h_congr :
+      ∑' α, run_adversary_commit_uniform_challenge VC cs A x secParam (comm_tuple, α)
+        = ∑' α,
+            commitMass VC cs A x secParam comm_tuple *
+              (uniform_pmf : PMF F) α := by
+    refine tsum_congr ?_
+    intro α
+    simp [run_adversary_commit_uniform_challenge_apply_eq_commitMass]
+  have h_tsum := (uniform_pmf : PMF F).tsum_coe
+  have h_factor := ENNReal.tsum_mul_left
+      (f := fun α => (uniform_pmf : PMF F) α)
+      (a := commitMass VC cs A x secParam comm_tuple)
+  calc
+    ∑' α, run_adversary_commit_uniform_challenge VC cs A x secParam (comm_tuple, α)
+        = ∑' α,
+            commitMass VC cs A x secParam comm_tuple *
+              (uniform_pmf : PMF F) α := h_congr
+    _ = commitMass VC cs A x secParam comm_tuple *
+          ∑' α, (uniform_pmf : PMF F) α := h_factor
+    _ = commitMass VC cs A x secParam comm_tuple * 1 := by simp [h_tsum]
+    _ = commitMass VC cs A x secParam comm_tuple := by simp
+
+lemma tsum_run_adversary_commit_uniform_challenge_over_commitments
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    [DecidableEq (VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)]
+    (α : F) :
+    ∑' comm,
+        run_adversary_commit_uniform_challenge VC cs A x secParam (comm, α)
+      = (uniform_pmf : PMF F) α := by
+  classical
+  have h_congr :
+      ∑' comm,
+          run_adversary_commit_uniform_challenge VC cs A x secParam (comm, α)
+        = ∑' comm,
+            run_adversary_commit_tuple VC cs A x secParam comm *
+              (uniform_pmf : PMF F) α := by
+    refine tsum_congr ?_
+    intro comm
+    simp [run_adversary_commit_uniform_challenge_apply]
+  have h_tsum := (run_adversary_commit_tuple VC cs A x secParam).tsum_coe
+  have h_factor := ENNReal.tsum_mul_right
+      (f := fun comm => run_adversary_commit_tuple VC cs A x secParam comm)
+      (a := (uniform_pmf : PMF F) α)
+  calc
+    ∑' comm,
+        run_adversary_commit_uniform_challenge VC cs A x secParam (comm, α)
+        = ∑' comm,
+            run_adversary_commit_tuple VC cs A x secParam comm *
+              (uniform_pmf : PMF F) α := h_congr
+    _ = (∑' comm,
+          run_adversary_commit_tuple VC cs A x secParam comm) *
+            (uniform_pmf : PMF F) α := h_factor
+    _ = 1 * (uniform_pmf : PMF F) α := by simp [h_tsum]
+    _ = (uniform_pmf : PMF F) α := by simp
 
 /-- Marginal mass of observing a particular commitment tuple together with a challenge. -/
 noncomputable def commitChallengeMass
