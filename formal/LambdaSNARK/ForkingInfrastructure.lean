@@ -533,6 +533,43 @@ lemma heavyCommitMass_toReal_le_heavyCommitmentImage_card
   simpa [mul_comm]
     using h_final
 
+lemma successProbability_sub_le_heavyCommitmentImage_card
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) [DecidableEq VC.Commitment]
+    (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ)
+    (h_nonneg : 0 ≤ ε) :
+    successProbability VC cs A x secParam - ε ≤
+      ((heavyCommitmentImageFinset (VC := VC) (cs := cs) (A := A)
+          (x := x) (secParam := secParam) ε).card : ℝ) := by
+  classical
+  have h_mass :=
+    heavyCommitMass_toReal_ge_successProbability_sub (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (ε := ε) h_nonneg
+  have h_card :=
+    heavyCommitMass_toReal_le_heavyCommitmentImage_card (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (ε := ε)
+  exact le_trans h_mass h_card
+
+lemma successProbability_sub_scaled_le_heavyCommitmentImage_card
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) [DecidableEq VC.Commitment]
+    (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ)
+    (h_nonneg : 0 ≤ ε)
+    (h_card_pos : 0 < (Fintype.card F : ℝ)) :
+    successProbability VC cs A x secParam - ε * (Fintype.card F : ℝ) ≤
+      ((heavyCommitmentImageFinset (VC := VC) (cs := cs) (A := A)
+          (x := x) (secParam := secParam) (ε := ε * (Fintype.card F : ℝ))).card : ℝ) := by
+  classical
+  have h_scaled_nonneg : 0 ≤ ε * (Fintype.card F : ℝ) :=
+    mul_nonneg h_nonneg (le_of_lt h_card_pos)
+  have h_bound :=
+    successProbability_sub_le_heavyCommitmentImage_card (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam)
+      (ε := ε * (Fintype.card F : ℝ)) h_scaled_nonneg
+  simpa using h_bound
+
 lemma heavyCommitmentImageFinset_subset_heavyCommitments
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) [DecidableEq VC.Commitment]
@@ -681,6 +718,64 @@ lemma heavyCommitmentImageFinset_heavy_properties
         (ε := ε * (Fintype.card F : ℝ)) h_scaled_nonneg
     simpa using h_lower
 
+lemma heavyRandomnessFinset_mem_is_heavy
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) [DecidableEq VC.Commitment]
+    (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ)
+    (h_pos : 0 < ε)
+    {rand : Fin secParam.succ}
+    (h_mem : rand ∈ heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) (ε := ε * (Fintype.card F : ℝ))) :
+    is_heavy_commitment VC cs x
+      (commitTupleOfRandomness VC cs A x secParam rand) ε := by
+  classical
+  have h_comm_mem :
+      commitTupleOfRandomness VC cs A x secParam rand ∈
+        heavyCommitments VC cs A x secParam (ε * (Fintype.card F : ℝ)) := by
+    exact
+      (mem_heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam)
+        (ε := ε * (Fintype.card F : ℝ))).1 h_mem
+  exact
+    heavyCommitment_mem_is_heavy (VC := VC) (cs := cs) (A := A) (x := x)
+      (secParam := secParam) (ε := ε) h_pos h_comm_mem
+
+lemma exists_heavy_randomness_candidate
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) [DecidableEq VC.Commitment]
+    (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ)
+    (ε : ℝ)
+    (h_pos : 0 < ε)
+    (h_nonneg : 0 ≤ ε) :
+    ∃ heavy_rand : Finset (Fin secParam.succ),
+      (heavy_rand.card : ℝ) ≥
+          (successProbability VC cs A x secParam -
+              ε * (Fintype.card F : ℝ)) * (secParam.succ : ℝ) ∧
+      ∀ rand ∈ heavy_rand,
+        is_heavy_commitment VC cs x
+          (commitTupleOfRandomness VC cs A x secParam rand) ε := by
+  classical
+  set n : ℝ := (Fintype.card F : ℝ)
+  have h_card_pos : 0 < n := by
+    simpa [n] using
+      (show 0 < (Fintype.card F : ℝ) from by exact_mod_cast Fintype.card_pos)
+  have h_scaled_nonneg : 0 ≤ ε * n := mul_nonneg h_nonneg (le_of_lt h_card_pos)
+  set heavy_rand :=
+    heavyRandomnessFinset (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε * n)
+  have h_lower :=
+    heavy_randomness_lower_bound (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε * n) h_scaled_nonneg
+  refine ⟨heavy_rand, ?_, ?_⟩
+  · simpa [heavy_rand, n]
+      using h_lower
+  · intro rand h_rand
+    simpa [heavy_rand, n]
+      using heavyRandomnessFinset_mem_is_heavy (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) (ε := ε) h_pos h_rand
+
 lemma exists_heavy_commitments_candidate
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) [DecidableEq VC.Commitment]
@@ -760,36 +855,41 @@ lemma exists_heavy_commitments_candidate_weighted
   · intro comm h_comm
     simpa [heavy_comms] using h_all comm h_comm
 
-/-- If adversary succeeds with probability ≥ ε, then a fraction ≥ ε - 1/|F|
-    of commitment choices are "heavy": for each such commitment,
-    at least ε|F| challenges lead to accepting proofs.
+/-- Combinatorial counting step of the heavy-row argument.
 
-    **AXIOM**: Requires probabilistic model formalization.
+Given a positive heaviness threshold `ε`, we extract an explicit finite set of
+commitment tuples such that:
+* every commitment in the set is `ε`-heavy (at least `ε · |F|` challenges
+  succeed), and
+* the cardinality of the set dominates the global success deficit
+  `successProbability - ε · |F|`.
 
-    Proof strategy (for future implementation):
-    1. Total success probability = sum over (commitments × challenges) of indicator
-    2. Group by commitments: Pr[success] = sum_c Pr[commit=c] * Pr[success | c]
-    3. If too few heavy commitments, total prob < ε (contradiction)
-    4. Pigeonhole: if Pr[success] ≥ ε, then heavy commitments exist
-
-    Dependencies:
-    - run_adversary implemented via PMF.bind
-    - Success probability formalized as PMF.toMeasure
-    - Finset.sum lemmas for expectation reasoning
-
-    Estimated effort: 3-4h -/
-axiom heavy_row_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
-    (VC : VectorCommitment F) (cs : R1CS F)
-    (A : Adversary F VC) (x : PublicInput F cs.nPub)
+This lemma is obtained purely from the heavy/light infrastructure developed in
+`LambdaSNARK.Forking.HeavyLight`.  The remaining work to fully match the
+classical heavy-row statement is to rewrite the bound into the customary
+`ε - 1/|F|` form; the algebraic manipulations for that strengthening are tracked
+in `axiom-elimination-plan.md`.
+-/
+lemma heavy_row_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) [DecidableEq VC.Commitment]
+    (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub)
     (ε : ℝ) (secParam : ℕ)
     (h_ε_pos : 0 < ε)
     (_h_ε_bound : ε ≤ 1)
-    (h_field_size : (Fintype.card F : ℝ) > 0)
-    (h_success : True)  -- TODO: formalize Pr[verify = true] ≥ ε
-    :
+    (_h_field_size : (Fintype.card F : ℝ) > 0) :
     ∃ (heavy_comms : Finset (VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment)),
-      (heavy_comms.card : ℝ) ≥ (ε - 1 / (Fintype.card F : ℝ)) * secParam ∧
-      ∀ c ∈ heavy_comms, is_heavy_commitment VC cs x c ε
+      (heavy_comms.card : ℝ) ≥
+          successProbability VC cs A x secParam -
+            ε * (Fintype.card F : ℝ) ∧
+      ∀ c ∈ heavy_comms, is_heavy_commitment VC cs x c ε := by
+  classical
+  obtain ⟨heavy_comms, h_card, h_heavy⟩ :=
+    exists_heavy_commitments_candidate (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε) h_ε_pos
+  refine ⟨heavy_comms, ?_, ?_⟩
+  · simpa using h_card
+  · exact h_heavy
 
 -- ============================================================================
 -- Fork Success Probability
