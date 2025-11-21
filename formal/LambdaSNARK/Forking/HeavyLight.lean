@@ -189,6 +189,22 @@ noncomputable def heavyCommitSeedWeight (ε : ℝ)
     else
       0
 
+noncomputable def heavyRandomnessSet (ε : ℝ) : Set (Fin secParam.succ) :=
+  {rand |
+    commitTupleOfRandomness VC cs A x secParam rand ∈
+      heavyCommitments VC cs A x secParam ε}
+
+lemma heavyRandomnessSet_finite (ε : ℝ) :
+    (heavyRandomnessSet (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) ε).Finite := by
+  classical
+  have h_univ :
+      (Set.univ : Set (Fin secParam.succ)).Finite :=
+    Set.finite_univ
+  refine h_univ.subset ?_
+  intro rand _
+  trivial
+
 noncomputable def lightCommitMass (ε : ℝ) : ENNReal := by
   classical
   exact ∑' comm_tuple,
@@ -398,12 +414,12 @@ lemma heavyCommitMass_mul_randomnessCard_eq_heavySeedCount
             commitTupleOfRandomness VC cs A x secParam rand ∈
               heavyCommitments VC cs A x secParam ε}) : ENNReal) := by
   classical
-  set heavySet : Set (Fin secParam.succ) :=
-    {rand | commitTupleOfRandomness VC cs A x secParam rand ∈
-      heavyCommitments VC cs A x secParam ε}
+  set heavySet :=
+    heavyRandomnessSet (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) ε
   have h_finite : heavySet.Finite :=
-    (Set.finite_univ (α := Fin secParam.succ)).subset
-      (by intro _ _; trivial)
+    heavyRandomnessSet_finite (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam) (ε := ε)
   set heavyFinset : Finset (Fin secParam.succ) := h_finite.toFinset
   have h_mem :
       ∀ rand : Fin secParam.succ,
@@ -535,6 +551,7 @@ lemma heavyCommitMass_mul_randomnessCard_eq_heavySeedCount
             h_value.trans (by simp)
           exact h_mul_assoc.trans h_value'
     _ = (Nat.cast (Set.ncard heavySet) : ENNReal) := h_card_eq.symm
+
 
 lemma tsum_commitMass_eq_one
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
@@ -1236,6 +1253,34 @@ lemma heavyCommitMass_le_one
     simpa using h_total
   simpa [h_sum_eq] using h_bound
 
+lemma heavyCommitMass_toReal_mul_randomnessCard_eq_heavySeedCount
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ) :
+    (heavyCommitMass VC cs A x secParam ε).toReal * (secParam.succ : ℝ) =
+      (Set.ncard
+        (heavyRandomnessSet (VC := VC) (cs := cs) (A := A)
+          (x := x) (secParam := secParam) ε) : ℝ) := by
+  classical
+  have h_eq :=
+    heavyCommitMass_mul_randomnessCard_eq_heavySeedCount (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (ε := ε)
+  have h_mass_lt_top :
+      heavyCommitMass VC cs A x secParam ε < (⊤ : ENNReal) := by
+    have h_le_one :=
+      heavyCommitMass_le_one (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) (ε := ε)
+    exact lt_of_le_of_lt h_le_one ENNReal.one_lt_top
+  have h_mass_ne_top :
+      heavyCommitMass VC cs A x secParam ε ≠ (⊤ : ENNReal) :=
+    (lt_top_iff_ne_top).1 h_mass_lt_top
+  have h_succ_ne_top :
+      (secParam.succ : ENNReal) ≠ (⊤ : ENNReal) :=
+    ENNReal.natCast_ne_top _
+  have h_toReal := congrArg ENNReal.toReal h_eq
+  simpa [ENNReal.toReal_mul, h_mass_ne_top, h_succ_ne_top]
+    using h_toReal
+
 
 lemma lightCommitMass_le_one
   (ε : ℝ) :
@@ -1416,6 +1461,81 @@ lemma successMass_le_heavyMass_add_eps
     simpa [mul_comm, mul_left_comm, mul_assoc]
       using this
   exact h_base.trans (add_le_add_left h_mul_le _)
+
+/-- Число тяжёлых случайностей оценивает запас вероятности успеха. -/
+lemma heavyRandomness_card_lower_bound
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub) (secParam : ℕ) (ε : ℝ)
+    (h_nonneg : 0 ≤ ε) :
+    (successProbability VC cs A x secParam - ε) * (secParam.succ : ℝ) ≤
+      (Set.ncard
+        (heavyRandomnessSet (VC := VC) (cs := cs) (A := A)
+          (x := x) (secParam := secParam) ε) : ℝ) := by
+  classical
+  have h_mass_bound :=
+    successMass_le_heavyMass_add_eps (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam) (ε := ε)
+  have h_success_lt_top :=
+    lt_of_le_of_lt
+      (successMass_le_one (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam)) ENNReal.one_lt_top
+  have h_success_ne_top :
+      successMass VC cs A x secParam ≠ (⊤ : ENNReal) :=
+    (lt_top_iff_ne_top).1 h_success_lt_top
+  have h_heavy_lt_top :=
+    lt_of_le_of_lt
+      (heavyCommitMass_le_one (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) (ε := ε)) ENNReal.one_lt_top
+  have h_heavy_ne_top :
+      heavyCommitMass VC cs A x secParam ε ≠ (⊤ : ENNReal) :=
+    (lt_top_iff_ne_top).1 h_heavy_lt_top
+  have h_ofReal_ne_top : ENNReal.ofReal ε ≠ (⊤ : ENNReal) := by simp
+  have h_sum_ne_top :
+      heavyCommitMass VC cs A x secParam ε + ENNReal.ofReal ε ≠ (⊤ : ENNReal) :=
+    ENNReal.add_ne_top.mpr ⟨h_heavy_ne_top, h_ofReal_ne_top⟩
+  have h_toReal :=
+    (ENNReal.toReal_le_toReal h_success_ne_top h_sum_ne_top).mpr h_mass_bound
+  have h_success_eq :=
+    successProbability_toReal_successMass (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam)
+  have h_sum_toReal :=
+    ENNReal.toReal_add h_heavy_ne_top h_ofReal_ne_top
+  have h_ofReal_eval := ENNReal.toReal_ofReal h_nonneg
+  have h_success_prob_le :
+      successProbability VC cs A x secParam ≤
+        (heavyCommitMass VC cs A x secParam ε).toReal + ε := by
+    simpa [h_success_eq, h_sum_toReal, h_ofReal_eval]
+      using h_toReal
+  have h_sub :
+      successProbability VC cs A x secParam - ε ≤
+        (heavyCommitMass VC cs A x secParam ε).toReal :=
+    (sub_le_iff_le_add).2 h_success_prob_le
+  have h_succ_pos : 0 < (secParam.succ : ℝ) := by
+    exact_mod_cast Nat.succ_pos secParam
+  have h_mul :=
+    mul_le_mul_of_nonneg_right h_sub (le_of_lt h_succ_pos)
+  have h_card_eq :=
+    heavyCommitMass_toReal_mul_randomnessCard_eq_heavySeedCount
+      (VC := VC) (cs := cs) (A := A) (x := x) (secParam := secParam)
+      (ε := ε)
+  have h_card_eq' :
+      (heavyCommitMass VC cs A x secParam ε).toReal *
+          ((secParam : ℝ) + 1) =
+        (Set.ncard
+          (heavyRandomnessSet (VC := VC) (cs := cs) (A := A)
+            (x := x) (secParam := secParam) ε) : ℝ) := by
+    simpa [Nat.cast_succ, add_comm, add_left_comm, add_assoc]
+      using h_card_eq
+  have h_goal :
+      (successProbability VC cs A x secParam - ε) * (secParam.succ : ℝ) ≤
+        (Set.ncard
+          (heavyRandomnessSet (VC := VC) (cs := cs) (A := A)
+            (x := x) (secParam := secParam) ε) : ℝ) := by
+    simpa [h_card_eq', Nat.cast_succ, add_comm, add_left_comm, add_assoc]
+      using h_mul
+  exact h_goal
+
 
 lemma exists_success_transcript_of_successProbability_lt
   {ε : ℝ}
