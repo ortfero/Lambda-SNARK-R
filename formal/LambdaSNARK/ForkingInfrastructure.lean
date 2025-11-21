@@ -450,18 +450,17 @@ lemma successProbability_eq_successfulRandomness_card_div
           simp [div_eq_mul_inv]
 
 /-!
-## WARNING: Axiomatized Heavy Theorems
+## Historical Note: Heavy-Row Infrastructure
 
-Two probability bounds remain axiomatized to keep the development free of
-`sorry` while the probabilistic infrastructure is being formalized:
+The heavy-row counting argument and the associated fork-success bound were
+previously axiomatized while the probabilistic toolkit was under construction.
+Both facts are now proved constructively in this file:
 
-1. **heavy_row_lemma**: Formalization of the adversary success probability via
-  `PMF.bind` and a heavy-row counting argument.
-2. **fork_success_bound**: Combinatorial lower bound on obtaining two distinct
-  successful challenges once a heavy commitment exists.
+1. `heavy_row_lemma` packages the PMF-based heavy-set extraction.
+2. `fork_success_bound` derives the ε²/2 lower bound on repeated success.
 
-These statements will be discharged after completing the PMF model for the
-adversary and proving the required binomial coefficient inequalities.
+The comment is kept to document the milestone and provide quick pointers for
+future maintenance. No axioms remain in this section.
 -/
 
 lemma exists_heavyCommitment_of_successProbability_ge
