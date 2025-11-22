@@ -992,9 +992,17 @@ Q3-Q4 2026:     Security audit ($50K-$100K) + external review
 - **Status**: 🔜 **Planned** (combines S2 ✅ + S3 + Schwartz-Zippel, ~30h)
 - **Statement**:
   ```lean
-  theorem knowledge_soundness :
-    NonNegligible ε → ModuleSIS_Hard → ∃E, 
-    (∃π, verify π) → ∃w, satisfies w ∧ extractPublic w = x
+  theorem knowledge_soundness
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (secParam : ℕ)
+    (A : Adversary F VC) (ε : ℕ → ℝ)
+    (assumptions : SoundnessAssumptions F VC cs)
+    (provider : ForkingEquationsProvider VC cs)
+    (h_rom : RandomOracleModel VC) :
+    ∃ (E : Extractor F VC), E.poly_time ∧
+      ∀ x,
+        (∃ π, verify VC cs x π = true) →
+        ∃ w, satisfies cs w ∧ extractPublic cs.h_pub_le w = x
   ```
 - **Dependencies**: S2 ✅ quotient_exists + S3 forking_lemma + Schwartz-Zippel ✅ (done)
 - **Time**: **0h done** + 120-160h remaining (was 160-200h, S2 reduces complexity)

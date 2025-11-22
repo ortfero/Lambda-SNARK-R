@@ -453,12 +453,18 @@ STATEMENT: >>>
 The system SHALL provide a machine-checked proof of knowledge soundness in Lean 4:
 ```lean
 theorem knowledge_soundness
-  (pp : PP R) (vk : VK R) (A : Adversary)
-  (h_sis : ModuleSIS_Hard pp.vc_pp)
-  (h_rom : RandomOracle_Model pp.hash) :
-  ∃ (E : Extractor), ∀ x,
-    Pr[Verify vk x (A x)] ≥ ε →
-    Pr[∃ w, satisfies vk.C x w ∧ E A x = some w] ≥ ε - negl(λ)
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  (VC : VectorCommitment F) (cs : R1CS F)
+  (secParam : ℕ) (A : Adversary F VC) (ε : ℕ → ℝ)
+  (assumptions : SoundnessAssumptions F VC cs)
+  (provider : ForkingEquationsProvider VC cs)
+  (h_rom : RandomOracleModel VC) :
+  ∃ (E : Extractor F VC), E.poly_time ∧
+    ∀ (x : PublicInput F cs.nPub),
+      (∃ π, verify VC cs x π = true) →
+      ∃ w : Witness F cs.nVars,
+        satisfies cs w ∧ extractPublic cs.h_pub_le w = x ∧
+        ((min (ε secParam) 1) ^ 2) / 2 - 1 / (Fintype.card F : ℝ)
 ```
 <<<
 DELIVERABLE: >>>

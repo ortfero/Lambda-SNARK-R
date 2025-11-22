@@ -51,6 +51,8 @@ structure HonestProver (F : Type) [CommRing F] [DecidableEq F]
     extractPublic cs.h_pub_le w = x →
     ProofCertificate VC cs x
 
+/-- Extract the proof term constructed by an honest prover together with its
+certificate obligations. -/
 def HonestProver.prove {F : Type} [CommRing F] [DecidableEq F]
     {VC : VectorCommitment F} (P : HonestProver F VC)
     (cs : R1CS F) (w : Witness F cs.nVars)
@@ -59,6 +61,7 @@ def HonestProver.prove {F : Type} [CommRing F] [DecidableEq F]
     (h_pub : extractPublic cs.h_pub_le w = x) : Proof F VC :=
   (P.build cs w x r h_sat h_pub).proof
 
+/-- Every proof emitted by an honest prover passes the verifier. -/
 lemma HonestProver.prove_accepts {F : Type} [CommRing F] [DecidableEq F]
     {VC : VectorCommitment F} (P : HonestProver F VC)
     (cs : R1CS F) (w : Witness F cs.nVars)

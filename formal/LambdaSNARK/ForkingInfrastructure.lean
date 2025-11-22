@@ -1755,6 +1755,10 @@ structure ProtocolForkingEquations {F : Type} [Field F] [Fintype F]
       (extract_quotient_diff VC cs t1 t2 h_fork core.m core.ω)
         %ₘ vanishing_poly core.m core.ω = 0
 
+/-- Structured bundle giving the equations and remainder proof needed by the
+forking extractor for any valid transcript fork.  This is the runtime handle
+that soundness lemmas consume; concrete circuits typically build it from the
+protocol-level witness packaged in `ForkingEquations`. -/
 structure ForkingEquationsProvider {F : Type} [Field F] [Fintype F]
     [DecidableEq F] (VC : VectorCommitment F) (cs : R1CS F) where
   square : cs.nVars = cs.nCons
@@ -1774,6 +1778,9 @@ namespace ForkingEquationsProvider
 variable {F : Type} [Field F] [Fintype F] [DecidableEq F]
 variable {VC : VectorCommitment F} {cs : R1CS F}
 
+/-- Promote the core equations supplied by the provider to the full
+`ForkingVerifierEquations` record consumed by extraction lemmas.  The helper
+plugs the derived facts about constraint counts and degree bounds. -/
 @[simp]
 def build (provider : ForkingEquationsProvider VC cs)
     (t1 t2 : Transcript F VC) (h_fork : is_valid_fork VC t1 t2) :
@@ -1801,6 +1808,9 @@ lemma build_remainder_zero (provider : ForkingEquationsProvider VC cs)
   have h := provider.remainder_zero t1 t2 h_fork
   simpa [build, core] using h
 
+/-- Convenience constructor that reuses a `ProtocolForkingEquations`
+implementation as a runtime provider.  This is the typical bridge between
+verified circuit witnesses and the generic soundness pipeline. -/
 def ofProtocol (VC : VectorCommitment F) (cs : R1CS F)
   (proto : ProtocolForkingEquations VC cs) :
   ForkingEquationsProvider VC cs :=

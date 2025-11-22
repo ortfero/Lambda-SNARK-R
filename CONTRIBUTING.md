@@ -143,18 +143,22 @@ pub fn commit(ctx: &LweContext, msg: &[Field]) -> Commitment {
 ```lean
 -- Good: explicit types, detailed proof sketch
 theorem knowledge_soundness
-  (pp : PP R) (vk : VK R) (A : Adversary)
-  (h_sis : ModuleSIS_Hard pp.vc_pp)
-  (h_rom : RandomOracle_Model pp.hash) :
-  ∃ (E : Extractor), ∀ x,
-    Pr[Verify vk x (A x)] ≥ ε →
-    Pr[∃ w, satisfies vk.C x w ∧ E A x = some w] ≥ ε - negl(λ) := by
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F) (secParam : ℕ)
+    (A : Adversary F VC) (ε : ℕ → ℝ)
+    (assumptions : SoundnessAssumptions F VC cs)
+    (provider : ForkingEquationsProvider VC cs)
+    (h_rom : RandomOracleModel VC) :
+    ∃ (E : Extractor F VC), E.poly_time ∧
+        ∀ x,
+            (∃ π, verify VC cs x π = true) →
+            ∃ w, satisfies cs w ∧ extractPublic cs.h_pub_le w = x := by
   -- 1. Apply forking lemma to rewind A
-  have fork := forking_lemma A h_rom
+    have fork := forking_lemma VC cs secParam A ε assumptions provider h_rom
   -- 2. Extract collision from two accepting transcripts
   have collision := extract_collision fork
   -- 3. Collision contradicts SIS hardness
-  exact collision.contradicts h_sis
+    exact collision.contradicts assumptions.moduleSIS_holds
 ```
 
 ## 🧪 Testing Guidelines
