@@ -1,3 +1,4 @@
+import LambdaSNARK.Core
 import LambdaSNARK.ForkingInfrastructure
 import Mathlib.Algebra.Polynomial.Basic
 import Mathlib.Data.ZMod.Basic
@@ -182,9 +183,14 @@ lemma stub_extraction_soundness
         (extract_quotient_diff VC trivialR1CS tStub tStubFork
           stub_is_valid_fork stubEquations.m stubEquations.ω)
         stubEquations.m stubEquations.ω stubEquations.h_m_vars x) :=
-  extraction_soundness (VC := VC) (cs := trivialR1CS)
-    (t1 := tStub) (t2 := tStubFork)
-    stub_is_valid_fork stubEquations stub_remainder_zero h_sis x
+  by
+    let assumptions : LambdaSNARK.SoundnessCtx (ZMod 2) VC trivialR1CS :=
+      LambdaSNARK.SoundnessAssumptions.simple (VC := VC) (cs := trivialR1CS) h_sis
+    simpa using
+      (extraction_soundness (VC := VC) (cs := trivialR1CS)
+        (t1 := tStub) (t2 := tStubFork)
+        stub_is_valid_fork stubEquations stub_remainder_zero
+        assumptions) x
 
 end Trivial
 

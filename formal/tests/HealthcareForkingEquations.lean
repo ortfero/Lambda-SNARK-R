@@ -155,9 +155,11 @@ lemma healthcare_knowledge_soundness
         (∃ w : Witness HealthcareField healthcareR1CS.nVars,
           satisfies healthcareR1CS w ∧
           extractPublic healthcareR1CS.h_pub_le w = x) := by
+  let assumptions :=
+    LambdaSNARK.SoundnessAssumptions.simple (VC := VC) (cs := healthcareR1CS) h_sis
   simpa using
     (knowledge_soundness_of VC healthcareR1CS secParam A ε
-      h_non_negl h_mass h_success_prob h_sis h_rom)
+      h_non_negl h_mass h_success_prob assumptions h_rom)
 
 end Usage
 

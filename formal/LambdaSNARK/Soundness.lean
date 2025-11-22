@@ -13,6 +13,8 @@ import Mathlib.Probability.ProbabilityMassFunction.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Tactic
 
+open LambdaSNARK
+
 /-!
 # ΛSNARK-R Soundness
 
@@ -255,7 +257,7 @@ theorem forking_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
   (h_ε_pos : 0 < ε) (h_ε_bound : ε ≤ 1)
   (h_field_size : (Fintype.card F : ℝ) ≥ 2)
   (h_ε_mass : ε * (Fintype.card F : ℝ) ≥ 2)
-  (h_sis : ModuleSIS_Hard 256 2 12289 1024)
+  (assumptions : _root_.LambdaSNARK.SoundnessAssumptions F VC cs)
   (provider : ForkingEquationsProvider VC cs)
   -- Hypothesis: adversary success probability exceeds ε
   (h_success : ε < successProbability VC cs A x secParam)
@@ -296,7 +298,7 @@ theorem forking_lemma {F : Type} [Field F] [Fintype F] [DecidableEq F]
   have h_satisfies : satisfies cs w := by
     simpa [w] using
       ForkingExtractor.witness_satisfies (VC := VC) (cs := cs)
-        (provider := provider) (x := x) h_sis
+        (provider := provider) (x := x) assumptions
 
   -- Step 6: Verify public input match
   have h_pub : extractPublic cs.h_pub_le w = x := by
@@ -340,7 +342,7 @@ theorem knowledge_soundness {F : Type} [Field F] [Fintype F] [DecidableEq F]
   (h_success_prob : ∀ (x : PublicInput F cs.nPub),
       (∃ π, verify VC cs x π = true) →
         (min (ε secParam) 1) < successProbability VC cs A x secParam)
-  (h_sis : ModuleSIS_Hard 256 2 12289 1024)  -- Module-SIS hardness
+    (assumptions : _root_.LambdaSNARK.SoundnessAssumptions F VC cs)
   (provider : ForkingEquationsProvider VC cs)
   (h_rom : True)  -- Random Oracle Model (placeholder)
     :
@@ -453,7 +455,8 @@ theorem knowledge_soundness {F : Type} [Field F] [Fintype F] [DecidableEq F]
       simpa [ε_val] using h_success_prob x hx_success
     -- Forking lemma yields witness with matching public input
     obtain ⟨w, h_sat, h_pub, h_prob⟩ :=
-      forking_lemma VC cs A x ε_val secParam h_eps_pos h_eps_bound h_field_size h_mass' h_sis
+      forking_lemma VC cs A x ε_val secParam h_eps_pos h_eps_bound h_field_size h_mass'
+        assumptions
         provider h_success_val
     have h_prob' :
         (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ ε_val ^ 2 / 2 - 1 / (Fintype.card F : ℝ) := by
@@ -477,7 +480,7 @@ theorem knowledge_soundness_of {F : Type} [Field F] [Fintype F] [DecidableEq F]
   (h_success_prob : ∀ (x : PublicInput F cs.nPub),
     (∃ π, verify VC cs x π = true) →
       (min (ε secParam) 1) < successProbability VC cs A x secParam)
-    (h_sis : ModuleSIS_Hard 256 2 12289 1024)
+    (assumptions : _root_.LambdaSNARK.SoundnessAssumptions F VC cs)
     [ForkingEquationWitness VC cs]
     (h_rom : True) :
     ∃ (E : Extractor F VC),
@@ -492,7 +495,7 @@ theorem knowledge_soundness_of {F : Type} [Field F] [Fintype F] [DecidableEq F]
           extractPublic cs.h_pub_le w = x ∧
           (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ (min (ε secParam) 1) ^ 2 / 2
             - 1 / (Fintype.card F : ℝ)) :=
-  knowledge_soundness VC cs secParam A ε h_non_negl h_mass h_success_prob h_sis
+  knowledge_soundness VC cs secParam A ε h_non_negl h_mass h_success_prob assumptions
     (ForkingEquationWitness.providerOf (VC := VC) (cs := cs)) h_rom
 
 end LambdaSNARK

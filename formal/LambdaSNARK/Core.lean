@@ -362,4 +362,61 @@ axiom ModuleLWE_Hard (n k : ℕ) (q : ℕ) (σ : ℝ) : Prop
 /-- Placeholder for Module-SIS hardness assumption -/
 axiom ModuleSIS_Hard (n k : ℕ) (q : ℕ) (β : ℕ) : Prop
 
+/--
+Aggregates the cryptographic assumptions needed for ΛSNARK-R soundness proofs.
+
+This structure is intentionally thin at the moment: it merely re-expresses the
+individual assumptions as fields so that downstream lemmas can depend on a
+single record instead of a growing list of axioms.  Concrete instantiations will
+fill these fields with the appropriate hardness assumptions when proving the
+main theorems.
+-/
+structure SoundnessAssumptions (F : Type) [Field F]
+    (VC : VectorCommitment F) (cs : R1CS F) : Type where
+  /-- Module-SIS hardness premise for the concrete parameter set used. -/
+  moduleSIS : Prop := ModuleSIS_Hard 256 2 12289 1024
+  /-- Evidence that the Module-SIS hardness premise holds. -/
+  moduleSIS_holds : moduleSIS
+  /-- Optional Module-LWE hardness premise (defaults to the canonical placeholder). -/
+  moduleLWE : Prop := ModuleLWE_Hard 256 2 12289 3.2
+  /-- Evidence that the Module-LWE hardness premise holds. -/
+  moduleLWE_holds : moduleLWE
+  /-- Random Oracle Model assumption bundled with the reduction. -/
+  randomOracle : Prop := True
+  /-- Evidence that the Random Oracle assumption holds (trivial by default). -/
+  randomOracle_holds : randomOracle := by trivial
+
+namespace SoundnessAssumptions
+
+/--
+Constructor helper that packages the cryptographic premises used throughout the
+soundness development.  The Module-SIS witness is mandatory, while the
+Module-LWE and Random Oracle components default to `True` unless provided.
+-/
+def build
+    {F : Type} [Field F] (VC : VectorCommitment F) (cs : R1CS F)
+    (moduleSIS : Prop := ModuleSIS_Hard 256 2 12289 1024)
+    (moduleSIS_holds : moduleSIS)
+    (moduleLWE : Prop := True)
+    (moduleLWE_holds : moduleLWE := by trivial)
+    (randomOracle : Prop := True)
+    (randomOracle_holds : randomOracle := by trivial) :
+    SoundnessAssumptions F VC cs :=
+  { moduleSIS := moduleSIS
+    moduleSIS_holds := moduleSIS_holds
+    moduleLWE := moduleLWE
+    moduleLWE_holds := moduleLWE_holds
+    randomOracle := randomOracle
+    randomOracle_holds := randomOracle_holds }
+
+/-- Minimal constructor that only requires the Module-SIS hardness witness. -/
+def simple
+    {F : Type} [Field F] (VC : VectorCommitment F) (cs : R1CS F)
+    (moduleSIS_holds : ModuleSIS_Hard 256 2 12289 1024) :
+    SoundnessAssumptions F VC cs :=
+  build (VC := VC) (cs := cs) (moduleSIS_holds := moduleSIS_holds)
+
+end SoundnessAssumptions
+
+
 end LambdaSNARK

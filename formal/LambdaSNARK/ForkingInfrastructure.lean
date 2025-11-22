@@ -45,6 +45,11 @@ This file provides infrastructure for the forking lemma proof in ΛSNARK-R sound
 
 namespace LambdaSNARK
 
+/-- Local shorthand for the structured soundness assumptions. -/
+abbrev SoundnessCtx (F : Type) [Field F]
+    (VC : VectorCommitment F) (cs : R1CS F) : Type :=
+  SoundnessAssumptions F VC cs
+
 open scoped BigOperators
 open BigOperators Polynomial
 open LambdaSNARK
@@ -1717,14 +1722,14 @@ theorem extraction_soundness {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (eqns : ForkingVerifierEquations VC cs t1 t2 h_fork)
     (h_rem : (extract_quotient_diff VC cs t1 t2 h_fork eqns.m eqns.ω)
         %ₘ vanishing_poly eqns.m eqns.ω = 0)
-    (h_sis : ModuleSIS_Hard 256 2 12289 1024) :
+    (assumptions : SoundnessCtx F VC cs) :
     (x : PublicInput F cs.nPub) →
     satisfies cs
       (extract_witness VC cs
         (extract_quotient_diff VC cs t1 t2 h_fork eqns.m eqns.ω)
         eqns.m eqns.ω eqns.h_m_vars x) := by
   intro x
-  have _ := h_sis
+  have _ := assumptions.moduleSIS_holds
   classical
   have h_zero := constraint_poly_zero_of_equations (VC := VC) (cs := cs)
       (t1 := t1) (t2 := t2) (h_fork := h_fork) eqns x h_rem
@@ -1895,9 +1900,9 @@ noncomputable def witness (VC : VectorCommitment F) (cs : R1CS F)
       eqns.m eqns.ω eqns.h_m_vars x
 
 lemma witness_satisfies (VC : VectorCommitment F) (cs : R1CS F)
-    (provider : ForkingEquationsProvider VC cs)
-    (x : PublicInput F cs.nPub)
-    (h_sis : ModuleSIS_Hard 256 2 12289 1024) :
+  (provider : ForkingEquationsProvider VC cs)
+  (x : PublicInput F cs.nPub)
+  (assumptions : SoundnessCtx F VC cs) :
     satisfies cs (witness VC cs provider x) := by
   classical
   unfold witness
@@ -1909,7 +1914,7 @@ lemma witness_satisfies (VC : VectorCommitment F) (cs : R1CS F)
   let q := extract_quotient_diff VC cs t1 t2 hFork eqns.m eqns.ω
   have h_rem := provider.build_remainder_zero t1 t2 hFork
   have h_sat :=
-    extraction_soundness VC cs t1 t2 hFork eqns h_rem h_sis x
+    (extraction_soundness VC cs t1 t2 hFork eqns h_rem assumptions) x
   simpa [q]
 
 lemma witness_public (VC : VectorCommitment F) (cs : R1CS F)
