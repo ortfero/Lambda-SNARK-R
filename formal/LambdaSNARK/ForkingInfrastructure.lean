@@ -1239,6 +1239,54 @@ lemma fork_success_bound {F : Type} [Field F] [Fintype F] [DecidableEq F]
     le_trans h_step h_ratio_lower
   simpa [n] using h_final
 
+lemma fork_success_bound_of_heavyCommitment
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) [DecidableEq VC.Commitment]
+    (cs : R1CS F) (A : Adversary F VC)
+    (x : PublicInput F cs.nPub)
+    (secParam : ℕ)
+    (ε : ℝ)
+    (h_ε_pos : 0 < ε) (h_ε_bound : ε ≤ 1)
+    (h_field_size : (Fintype.card F : ℝ) ≥ 2)
+    (h_card_nat : Fintype.card F ≥ 2)
+    (h_ε_mass : ε * (Fintype.card F : ℝ) ≥ 2)
+    {comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment}
+    (h_heavy_mem : comm_tuple ∈
+      heavyCommitments VC cs A x secParam (ε * (Fintype.card F : ℝ))) :
+    let valid_challenges := successfulChallenges VC cs A x secParam comm_tuple
+    let total_pairs := Nat.choose (Fintype.card F) 2
+    let valid_pairs := Nat.choose valid_challenges.card 2
+    (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ ε ^ 2 / 2 - 1 / (Fintype.card F : ℝ) := by
+  classical
+  intro valid_challenges total_pairs valid_pairs
+  have h_card_pos_nat : 0 < Fintype.card F :=
+    Nat.lt_of_lt_of_le (by decide : 0 < 2) h_card_nat
+  have h_field_pos : 0 < (Fintype.card F : ℝ) := by
+    exact_mod_cast h_card_pos_nat
+  have h_scaled_pos : 0 < ε * (Fintype.card F : ℝ) :=
+    mul_pos h_ε_pos h_field_pos
+  have h_card_ge : ε * (Fintype.card F : ℝ) ≤ (valid_challenges.card : ℝ) := by
+    simpa [valid_challenges]
+      using successfulChallenges_card_ge_of_heavyCommitment (VC := VC) (cs := cs)
+        (A := A) (x := x) (secParam := secParam)
+        (ε := ε * (Fintype.card F : ℝ)) h_scaled_pos h_heavy_mem
+  have h_two_le_card_real : (2 : ℝ) ≤ (valid_challenges.card : ℝ) :=
+    le_trans (by simpa using h_ε_mass) h_card_ge
+  have h_valid_nonempty : valid_challenges.card ≥ 2 := by
+    exact_mod_cast h_two_le_card_real
+  have h_result :=
+    fork_success_bound (VC := VC)
+      (_state := A.snapshot cs x 0)
+      (valid_challenges := valid_challenges)
+      (ε := ε)
+      (h_heavy := h_card_ge)
+      (h_ε_pos := h_ε_pos)
+      (_h_ε_bound := h_ε_bound)
+      (h_field_size := h_field_size)
+      (h_valid_nonempty := h_valid_nonempty)
+  simpa [valid_challenges, total_pairs, valid_pairs] using h_result
+
+
 -- ============================================================================
 -- Witness Extraction from Fork
 -- ============================================================================

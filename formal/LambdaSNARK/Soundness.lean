@@ -75,52 +75,58 @@ lemma fork_event_probability_lower_bound {F : Type} [Field F] [Fintype F] [Decid
   let _ := A
   let _ := x
   let _ := secParam
+  let _ := h_field_size
   let _ := h_ε_mass
   let _ := h_success
-  let pp := VC.setup 256
-  let state : AdversaryState F VC :=
-    { randomness := 0
-      pp := pp
-      comm_Az := VC.commit pp [] 0
-      comm_Bz := VC.commit pp [] 0
-      comm_Cz := VC.commit pp [] 0
-      comm_quotient := VC.commit pp [] 0
-      quotient_poly := 0
-      quotient_rand := 0
-      quotient_commitment_spec := by
-        simp [Polynomial.coeffList_zero, pp]
-      domainSize := cs.nCons
-      omega := 1
-      respond := fun α β => by
-        refine {
-          Az_eval := (0 : F)
-          Bz_eval := 0
-          Cz_eval := 0
-          quotient_eval := 0
-          vanishing_eval := 0
-          opening_Az_α := VC.openProof pp [] 0 α
-          opening_Bz_β := VC.openProof pp [] 0 β
-          opening_Cz_α := VC.openProof pp [] 0 α
-          opening_quotient_α := VC.openProof pp [] 0 α
-        }
-    }
-  let valid_challenges : Finset F := (Finset.univ : Finset F)
-  let total_pairs := Nat.choose (Fintype.card F) 2
-  let valid_pairs := Nat.choose valid_challenges.card 2
-  have h_card_eq : (valid_challenges.card : ℝ) = (Fintype.card F : ℝ) := by
+  intro valid_challenges total_pairs valid_pairs
+  have h_valid_card : valid_challenges.card = Fintype.card F := by
     simp [valid_challenges]
-  have h_card_nonneg : 0 ≤ (Fintype.card F : ℝ) := by
-    exact_mod_cast (Nat.zero_le (Fintype.card F))
-  have h_heavy : (valid_challenges.card : ℝ) ≥ ε * (Fintype.card F : ℝ) := by
-    have h_mul := mul_le_mul_of_nonneg_right h_ε_bound h_card_nonneg
-    have h_card_le : ε * (Fintype.card F : ℝ) ≤ (Fintype.card F : ℝ) := by
-      simpa [one_mul] using h_mul
-    simpa [h_card_eq] using h_card_le
-  have h_valid_nonempty : valid_challenges.card ≥ 2 := by
-    simpa [valid_challenges] using h_card_nat
-  have h_bound :=
-    fork_success_bound VC state valid_challenges ε h_heavy h_ε_pos h_ε_bound h_field_size h_valid_nonempty
-  exact h_bound
+  have h_valid_pairs : valid_pairs = total_pairs := by
+    simp [valid_pairs, total_pairs, h_valid_card]
+
+  have h_total_nat_pos : 0 < total_pairs := by
+    have h_two_le : 2 ≤ Fintype.card F := h_card_nat
+    simpa [total_pairs] using (Nat.choose_pos (k := 2) h_two_le)
+  have h_total_ne_zero : (total_pairs : ℝ) ≠ 0 := by
+    exact_mod_cast (ne_of_gt h_total_nat_pos)
+
+  have h_ratio : (valid_pairs : ℝ) / (total_pairs : ℝ) = 1 := by
+    simp [h_valid_pairs, h_total_ne_zero]
+
+  have h_eps_nonneg : 0 ≤ ε := le_of_lt h_ε_pos
+  have h_sq_le_eps : ε ^ 2 ≤ ε := by
+    have := mul_le_mul_of_nonneg_left h_ε_bound h_eps_nonneg
+    simpa [pow_two, mul_comm] using this
+  have h_sq_half_le : ε ^ 2 / 2 ≤ ε / 2 := by
+    have h_half_nonneg : 0 ≤ (1 / (2 : ℝ)) := by norm_num
+    simpa [div_eq_mul_inv, pow_two, mul_comm, mul_left_comm] using
+      mul_le_mul_of_nonneg_right h_sq_le_eps h_half_nonneg
+  have h_eps_half_le : ε / 2 ≤ 1 / 2 := by
+    have h_half_nonneg : 0 ≤ (1 / (2 : ℝ)) := by norm_num
+    simpa [div_eq_mul_inv] using
+      mul_le_mul_of_nonneg_right h_ε_bound h_half_nonneg
+  have h_sq_le_half : ε ^ 2 / 2 ≤ 1 / 2 := h_sq_half_le.trans h_eps_half_le
+
+  have h_card_gt_one : 1 < Fintype.card F := lt_of_lt_of_le (by decide : 1 < 2) h_card_nat
+  have h_card_pos_nat : 0 < Fintype.card F := lt_trans (by decide : 0 < 1) h_card_gt_one
+  have h_card_pos : 0 < (Fintype.card F : ℝ) := by exact_mod_cast h_card_pos_nat
+  have h_inv_nonneg : 0 ≤ 1 / (Fintype.card F : ℝ) := by
+    have h := inv_nonneg.mpr h_card_pos.le
+    convert h using 1
+    simp [one_div]
+
+  have h_expr_le_sq : ε ^ 2 / 2 - 1 / (Fintype.card F : ℝ) ≤ ε ^ 2 / 2 :=
+    sub_le_self _ h_inv_nonneg
+  have h_expr_le_half : ε ^ 2 / 2 - 1 / (Fintype.card F : ℝ) ≤ 1 / 2 :=
+    h_expr_le_sq.trans h_sq_le_half
+  have h_expr_le_one : ε ^ 2 / 2 - 1 / (Fintype.card F : ℝ) ≤ 1 :=
+    h_expr_le_half.trans (by norm_num : (1 : ℝ) / 2 ≤ 1)
+
+  have h_le : ε ^ 2 / 2 - 1 / (Fintype.card F : ℝ) ≤
+      (valid_pairs : ℝ) / (total_pairs : ℝ) := by
+    simpa [h_ratio] using h_expr_le_one
+
+  exact h_le
 
 noncomputable def deterministic_fork_pair {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F)
@@ -189,6 +195,10 @@ lemma fork_success_event_probability_lower_bound {F : Type} [Field F] [Fintype F
     let total_pairs := Nat.choose (Fintype.card F) 2
     let valid_pairs := Nat.choose valid_challenges.card 2
     (valid_pairs : ℝ) / (total_pairs : ℝ) ≥ ε^2 / 2 - 1 / (Fintype.card F : ℝ) :=
+  let _ := h_field_size
+  let _ := h_card_nat
+  let _ := h_ε_mass
+  let _ := h_success
   fork_event_probability_lower_bound VC cs A x ε secParam
     h_ε_pos h_ε_bound h_field_size h_card_nat h_ε_mass h_success
 

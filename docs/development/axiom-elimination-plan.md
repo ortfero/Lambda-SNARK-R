@@ -58,6 +58,26 @@ probabilistic axioms remain.
 - **M3**: `knowledge_soundness` depends only on documented algebraic assumptions
   (e.g., Module-SIS hardness), no Lean axioms.
 
+## Fork Probability Lower-Bound Preconditions
+
+The Lean development currently derives the ε²/2 − 1/|F| bound under the
+following hypotheses.
+
+- `0 < ε` — required in `fork_event_probability_lower_bound` and
+   `fork_success_bound` for positivity arguments.
+- `ε ≤ 1` — ensures the combinatorial relaxation in both lemmas above remains
+   admissible.
+- `ε * (Fintype.card F : ℝ) ≥ 2` — supplies `valid_challenges.card ≥ 2` inside
+   `fork_success_bound_of_heavyCommitment`.
+- `(Fintype.card F : ℝ) ≥ 2` (equivalently `Fintype.card F ≥ 2`) — keeps
+   binomial denominators non-zero throughout the fork analysis.
+- `ModuleSIS_Hard` & ROM placeholder assumptions — global hypotheses for
+   `knowledge_soundness`.
+
+These conditions are threaded explicitly via `ForkingInfrastructure.lean`
+(`heavy_row_lemma`, `fork_success_bound`) into `Soundness.lean`
+(`forking_lemma`, `knowledge_soundness`).
+
 ## Immediate Next Actions
 
 1. Integrate the constructive heavy-row/fork lemmas into the higher-level
