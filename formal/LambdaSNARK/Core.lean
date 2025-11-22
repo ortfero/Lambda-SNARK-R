@@ -356,11 +356,88 @@ def verify_with_quotient {F : Type} [Field F] [DecidableEq F]
   (∃ pp, VC.verify pp π.comm_quotient π.challenge_α
     (π.quotient_poly.eval π.challenge_α) π.opening_quotient_α = true)
 
-/-- Placeholder for Module-LWE hardness assumption -/
-axiom ModuleLWE_Hard (n k : ℕ) (q : ℕ) (σ : ℝ) : Prop
+/-!
+Runtime assumptions for cryptographic hardness are modelled via small records so
+that callers must explicitly thread the premises they rely on.  Each assumption
+type admits an abstract witness and a (replaceable) default instance capturing
+the canonical parameter choices used throughout ΛSNARK-R.  Concrete reductions
+may later provide alternative instances with mechanised evidence.
+-/
 
-/-- Placeholder for Module-SIS hardness assumption -/
-axiom ModuleSIS_Hard (n k : ℕ) (q : ℕ) (β : ℕ) : Prop
+/-- Parameter pack for Module-SIS hardness statements. -/
+structure ModuleSISParams : Type where
+  n : ℕ
+  k : ℕ
+  q : ℕ
+  β : ℕ
+
+/-- Witness packaging a Module-SIS hardness proposition together with evidence. -/
+structure ModuleSISWitness (params : ModuleSISParams) : Type where
+  hardness : Prop
+  holds : hardness
+
+/-- Typeclass capturing the availability of a Module-SIS hardness witness. -/
+class ModuleSISAssumption (params : ModuleSISParams) : Type where
+  witness : ModuleSISWitness params
+
+/-- Predicate asserting Module-SIS hardness for the supplied parameters. -/
+def ModuleSIS_Hard (n k q β : ℕ)
+    [ModuleSISAssumption ⟨n, k, q, β⟩] : Prop :=
+  (ModuleSISAssumption.witness (params := ⟨n, k, q, β⟩)).hardness
+
+/-- Canonical proof object extracted from the available Module-SIS witness. -/
+def ModuleSIS_holds (n k q β : ℕ)
+    [ModuleSISAssumption ⟨n, k, q, β⟩] : ModuleSIS_Hard n k q β :=
+  (ModuleSISAssumption.witness (params := ⟨n, k, q, β⟩)).holds
+
+/-- Parameter pack for Module-LWE hardness statements. -/
+structure ModuleLWEParams : Type where
+  n : ℕ
+  k : ℕ
+  q : ℕ
+  σ : ℝ
+
+/-- Witness packaging a Module-LWE hardness proposition together with evidence. -/
+structure ModuleLWEWitness (params : ModuleLWEParams) : Type where
+  hardness : Prop
+  holds : hardness
+
+/-- Typeclass capturing the availability of a Module-LWE hardness witness. -/
+class ModuleLWEAssumption (params : ModuleLWEParams) : Type where
+  witness : ModuleLWEWitness params
+
+/-- Predicate asserting Module-LWE hardness for the supplied parameters. -/
+def ModuleLWE_Hard (n k q : ℕ) (σ : ℝ)
+    [ModuleLWEAssumption ⟨n, k, q, σ⟩] : Prop :=
+  (ModuleLWEAssumption.witness (params := ⟨n, k, q, σ⟩)).hardness
+
+/-- Canonical proof object extracted from the available Module-LWE witness. -/
+def ModuleLWE_holds (n k q : ℕ) (σ : ℝ)
+    [ModuleLWEAssumption ⟨n, k, q, σ⟩] : ModuleLWE_Hard n k q σ :=
+  (ModuleLWEAssumption.witness (params := ⟨n, k, q, σ⟩)).holds
+
+/-!
+Default witnesses (expressed as axioms for now) provide the concrete hardness
+assumptions used by the current ΛSNARK-R instantiation.  Projects integrating a
+mechanised reduction can replace these with genuine proofs by creating new
+instances.
+-/
+
+noncomputable section
+
+axiom moduleSISDefaultWitness :
+    ModuleSISWitness ⟨256, 2, 12289, 1024⟩
+
+axiom moduleLWEDefaultWitness :
+    ModuleLWEWitness ⟨256, 2, 12289, 3.2⟩
+
+noncomputable instance : ModuleSISAssumption ⟨256, 2, 12289, 1024⟩ :=
+  ⟨moduleSISDefaultWitness⟩
+
+noncomputable instance : ModuleLWEAssumption ⟨256, 2, 12289, 3.2⟩ :=
+  ⟨moduleLWEDefaultWitness⟩
+
+end
 
 /--
 Aggregates the cryptographic assumptions needed for ΛSNARK-R soundness proofs.

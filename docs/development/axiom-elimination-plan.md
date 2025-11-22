@@ -71,8 +71,10 @@ following hypotheses.
    `fork_success_bound_of_heavyCommitment`.
 - `(Fintype.card F : ℝ) ≥ 2` (equivalently `Fintype.card F ≥ 2`) — keeps
    binomial denominators non-zero throughout the fork analysis.
-- `ModuleSIS_Hard` & ROM placeholder assumptions — global hypotheses for
-   `knowledge_soundness`.
+- `ModuleSIS_Hard` & ROM placeholder assumptions — now routed through
+   `SoundnessAssumptions` using the new `ModuleSISAssumption`/`ModuleLWEAssumption`
+   typeclasses; defaults rely on bundled witnesses and remain global hypotheses
+   for `knowledge_soundness`.
 
 These conditions are threaded explicitly via `ForkingInfrastructure.lean`
 (`heavy_row_lemma`, `fork_success_bound`) into `Soundness.lean`
@@ -82,8 +84,9 @@ These conditions are threaded explicitly via `ForkingInfrastructure.lean`
 
 1. Integrate the constructive heavy-row/fork lemmas into the higher-level
    `forking_lemma` pipeline and refresh any derived documentation or diagrams.
-2. Resolve outstanding scratch helpers (e.g. `formal/TmpDec.lean`) and ensure CI
-   covers `lake build LambdaSNARK` plus the probabilistic regression tests.
+2. Resolve outstanding scratch helpers (now removed via `formal/Tmp.lean`) and
+   ensure CI covers `lake build LambdaSNARK` plus the probabilistic regression
+   tests.
 3. Extend Lean regression suites with concrete circuits (healthcare, plaquette)
    exercising the new inequalities end-to-end.
 
