@@ -503,6 +503,85 @@ lemma exists_heavyCommitment_of_successProbability_ge
   exact exists_heavyCommitment_of_successProbability_lt (VC := VC) (cs := cs)
     (A := A) (x := x) (secParam := secParam) (ε := δ) hδ_lt
 
+lemma exists_heavyCommitment_of_successProbability_gt
+    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+    (VC : VectorCommitment F) (cs : R1CS F)
+    (A : Adversary F VC) (x : PublicInput F cs.nPub)
+    {ε : ℝ} (secParam : ℕ)
+    (h_ε_nonneg : 0 ≤ ε)
+    (h_gap : ε < successProbability VC cs A x secParam) :
+    ∃ comm_tuple,
+      comm_tuple ∈ heavyCommitments VC cs A x secParam ε := by
+  classical
+  have h_mass_le_one :=
+    successMass_le_one (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam)
+  have h_mass_lt_top :
+      successMass VC cs A x secParam < (⊤ : ENNReal) :=
+    lt_of_le_of_lt h_mass_le_one ENNReal.one_lt_top
+  have h_mass_ne_top :
+      successMass VC cs A x secParam ≠ (⊤ : ENNReal) :=
+    (lt_top_iff_ne_top).1 h_mass_lt_top
+  have h_ofReal_ne_top : ENNReal.ofReal ε ≠ (⊤ : ENNReal) := by simp
+  by_contra h_none
+  have h_none' := not_exists.mp h_none
+  have h_pointwise :
+      (fun comm_tuple : VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment =>
+        successMassGivenCommit VC cs A x secParam comm_tuple)
+        ≤ fun comm_tuple =>
+          ENNReal.ofReal ε *
+            commitMass VC cs A x secParam comm_tuple := by
+    intro comm_tuple
+    have h_not : comm_tuple ∉ heavyCommitments VC cs A x secParam ε :=
+      h_none' comm_tuple
+    exact
+      successMassGivenCommit_le_of_not_heavy (VC := VC) (cs := cs) (A := A)
+        (x := x) (secParam := secParam) (ε := ε)
+        (comm_tuple := comm_tuple) h_not
+  have h_sum_le := ENNReal.tsum_le_tsum h_pointwise
+  have h_mass_eq :=
+    successMass_eq_tsum_successMassGivenCommit (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam)
+  have h_commit_sum :=
+    tsum_commitMass_eq_one (VC := VC) (cs := cs) (A := A)
+      (x := x) (secParam := secParam)
+  have h_bound :
+      successMass VC cs A x secParam ≤ ENNReal.ofReal ε := by
+    have h_mass_le :
+        successMass VC cs A x secParam
+          ≤ ∑'
+              comm_tuple,
+                ENNReal.ofReal ε *
+                  commitMass VC cs A x secParam comm_tuple := by
+      simpa [h_mass_eq] using h_sum_le
+    have h_right :=
+      ENNReal.tsum_mul_right
+        (f := fun comm_tuple :
+            VC.Commitment × VC.Commitment × VC.Commitment × VC.Commitment =>
+              commitMass VC cs A x secParam comm_tuple)
+        (a := ENNReal.ofReal ε)
+    have h_eval :
+        ∑'
+            comm_tuple,
+              ENNReal.ofReal ε *
+                  commitMass VC cs A x secParam comm_tuple
+          = ENNReal.ofReal ε *
+              ∑'
+                comm_tuple,
+                  commitMass VC cs A x secParam comm_tuple := by
+      simpa [mul_comm, mul_left_comm, mul_assoc]
+        using h_right
+    simpa [h_eval, h_commit_sum, mul_comm]
+      using h_mass_le
+  have h_toReal :=
+    successProbability_toReal_successMass (VC := VC) (cs := cs)
+      (A := A) (x := x) (secParam := secParam)
+  have h_contra : successProbability VC cs A x secParam ≤ ε := by
+    have h_toReal_le :=
+      (ENNReal.toReal_le_toReal h_mass_ne_top h_ofReal_ne_top).mpr h_bound
+    simpa [h_toReal, ENNReal.toReal_ofReal h_ε_nonneg] using h_toReal_le
+  exact (not_le_of_gt h_gap) h_contra
+
 lemma heavy_randomness_lower_bound
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
