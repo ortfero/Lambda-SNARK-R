@@ -1,334 +1,127 @@
-# ΛSNARK-R: Lattice-Based SNARK over Rings
+# ΛSNARK-R
 
-> **Version**: 0.1.0-alpha  
-> **Status**: M5 Complete — Optimizations Done (NTT + Zero-Knowledge)  
-> **License**: Apache-2.0 OR MIT  
+[![Build status](https://github.com/SafeAGI-lab/Lambda-SNARK-R/actions/workflows/ci.yml/badge.svg)](https://github.com/SafeAGI-lab/Lambda-SNARK-R/actions/workflows/ci.yml)
+[![Security policy](https://img.shields.io/badge/security-disclosure-blue.svg)](SECURITY.md)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-APACHE)
 
-Post-quantum SNARK system based on Module-LWE/SIS for R1CS over cyclotomic rings, with zero-knowledge and succinct proofs.
+ΛSNARK-R is a research-first implementation of a post-quantum, zero-knowledge Λ-style succinct SNARK: Rust prover, C++ commitment kernel (Microsoft SEAL), and an in-progress Lean 4 formal verification layer. The goal is a reproducible argument system backed by Module-LWE assumptions with high assurance.
 
-## 🎯 Overview
-
-ΛSNARK-R is a production-grade implementation of lattice-based SNARKs using:
-- **Cryptographic Foundation**: Module-LWE/SIS hardness assumptions
-- **Architecture**: Hybrid C++ (performance-critical core) + Rust (safe API)
-- **Proof System**: R1CS with polynomial IOP + Fiat-Shamir transformation
-- **Target Applications**: Post-quantum cryptography, privacy-preserving computation
-
-### Key Features
-
-- ✅ **Post-Quantum Security**: 128-bit quantum security (Module-LWE)
-- ✅ **Working R1CS Prover/Verifier**: Full prove-verify pipeline operational
-- ✅ **Dual-Challenge Soundness**: ε ≤ 2^-48 (two independent Fiat-Shamir challenges)
-- ✅ **Succinct Proofs**: Constant 224-byte ZK proofs (independent of circuit size)
-- ✅ **Privacy**: Range proofs without revealing values (bit decomposition)
-- ✅ **Zero-Knowledge**: Polynomial blinding (M5.2) — witness hiding via Q'(X) = Q(X) + r·Z_H(X)
-- ✅ **FFT/NTT**: Cooley-Tukey NTT (M5.1) — 1000× speedup (O(m²) → O(m log m))
-
-### Architecture Overview
-
-![System Components](docs/images/system-components.svg)
-
-For detailed architecture documentation, see [docs/architecture.md](docs/architecture.md).
-
-## 📁 Repository Structure
-
-```
-ΛSNARK-R/
-├── cpp-core/              # C++ performance kernel (SEAL, NTL)
-│   ├── include/           # Public C++ headers
-│   ├── src/               # Implementation
-│   └── tests/             # Google Test suite
-│
-├── rust-api/              # Rust safe wrapper
-│   ├── lambda-snark-core/ # Core types (#![no_std])
-│   ├── lambda-snark-sys/  # FFI bindings
-│   ├── lambda-snark/      # Public API
-│   └── lambda-snark-cli/  # CLI tool
-│
-├── formal/                # Lean 4 formal verification
-│   └── LambdaSNARK/       # Soundness, ZK, Completeness proofs
-│
-├── docs/                  # Documentation (mkdocs)
-│   ├── spec/              # Formal specification
-│   ├── architecture/      # Design docs
-│   └── api/               # API reference
-│
-├── benches/               # Benchmarks (Criterion)
-├── examples/              # Usage examples
-├── scripts/               # Build/test automation
-└── .github/               # CI/CD workflows
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-**Rust Toolchain** (required):
-```bash
-# Rust 1.75+ (stable)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-rustup default stable
-```
-
-**C++ Toolchain** (for LWE commitment):
-```bash
-# Install SEAL (Microsoft FHE library)
-vcpkg install seal
-
-# CMake 3.20+
-cmake --version
-```
-
-### Build
-
-```bash
-# Clone repository
-git clone https://github.com/SafeAGI-lab/Lambda-SNARK-R.git
-cd ΛSNARK-R
-
-# Build Rust API + CLI
-cd rust-api
-cargo build --release
-
-# Run examples
-cd lambda-snark-cli
-cargo run --release -- r1cs-example
-cargo run --release -- range-proof-example
-cargo run --release -- healthcare-example
-cargo run --release -- benchmark
-```
-
-### Usage Example: Simple Multiplication
-
-```rust
-use lambda_snark::{CircuitBuilder, LweContext, Params, Profile, SecurityLevel};
-use lambda_snark::{prove_r1cs, verify_r1cs};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Build R1CS circuit for 7 × 13 = 91
-    let modulus = 17592186044423u64; // Prime near 2^44
-    let mut builder = CircuitBuilder::new(modulus);
-    
-    let one = builder.alloc_var();      // z_0 = 1
-    let x = builder.alloc_var();        // z_1 = 7
-    let y = builder.alloc_var();        // z_2 = 13
-    let result = builder.alloc_var();   // z_3 = 91
-    
-    // Constraint: x · y = result
-    builder.add_constraint(
-        vec![(x, 1)],
-        vec![(y, 1)],
-        vec![(result, 1)],
-    );
-    
-    builder.set_public_inputs(2); // constant + x are public
-    let r1cs = builder.build();
-    
-    // Prepare witness
-    let witness = vec![1, 7, 13, 91];
-    let public_inputs = r1cs.public_inputs(&witness);
-    
-    // Setup LWE context
-    let params = Params::new(
-        SecurityLevel::Bits128,
-        Profile::RingB { n: 4096, k: 2, q: modulus, sigma: 3.19 },
-    );
-    let ctx = LweContext::new(params)?;
-    
-    // Generate proof
-    let proof = prove_r1cs(&r1cs, &witness, &ctx, 42)?;
-    println!("✓ Proof generated ({} bytes)", std::mem::size_of_val(&proof));
-    
-    // Verify
-    let valid = verify_r1cs(&proof, public_inputs, &r1cs);
-    assert!(valid, "Proof must verify!");
-    println!("✓ Proof verified!");
-    
-    Ok(())
-}
-```
-
-### CLI Examples
-
-```bash
-# Simple multiplication: 7 × 13 = 91
-$ cargo run --release -- r1cs-example
-╔═══════════════════════════════════════════════════════════╗
-║       ΛSNARK-R: R1CS Proof Example (TV-R1CS-1)           ║
-╚═══════════════════════════════════════════════════════════╝
-...
-✓ Proof VALID ✓
-SUCCESS: Proof verified! 7 × 13 = 91 is proven correct
-
-# Range proof: prove value ∈ [0, 256) without revealing
-$ cargo run --release -- range-proof-example
-🎯 Goal: Prove that a secret value is in range [0, 256)
-   WITHOUT revealing the actual value!
-...
-✓ Proof VALID ✓
-SUCCESS: Proved value ∈ [0, 256) without revealing!
-
-# Healthcare: prove diagnosis without revealing patient data
-$ cargo run --release -- healthcare-example
-🏥 Scenario: Hospital proves diabetes risk without sending patient data
-...
-✓ Proof VALID ✓
-SUCCESS: Diagnosis proven without data disclosure!
-
-# Benchmark different circuit sizes
-$ cargo run --release -- benchmark --max-constraints 30
-┌─────────────┬────────────┬────────────┬────────────┬────────────┐
-│ Constraints │  Build (ms)│  Prove (ms)│ Verify (ms)│  Proof (B) │
-├─────────────┼────────────┼────────────┼────────────┼────────────┤
-│          10 │       0.03 │       4.45 │       1.03 │        216 │
-│          20 │       0.04 │       5.92 │       1.05 │        216 │
-│          30 │       0.06 │       5.79 │       1.00 │        216 │
-└─────────────┴────────────┴────────────┴────────────┴────────────┘
-```
-
-See [rust-api/lambda-snark-cli/EXAMPLES.md](rust-api/lambda-snark-cli/EXAMPLES.md) for detailed usage.
-
-## 📊 Performance (Current: M5 Complete)
-
-**Benchmark Results** (m=10/20/30 constraints, Rust implementation with NTT):
-
-| Constraints | Build (ms) | Prove (ms) | Verify (ms) | Proof Size | ZK Overhead |
-|-------------|------------|------------|-------------|------------|-------------|
-| 10          | 0.03       | 4.45       | 1.03        | 224 bytes  | 1.53×       |
-| 20          | 0.04       | 5.92       | 1.05        | 224 bytes  | 1.48×       |
-| 30          | 0.06       | 5.79       | 1.00        | 224 bytes  | 1.45×       |
-
-**Key Observations**:
-- ✅ **Proof size**: Constant 224 bytes (8 bytes ZK overhead for blinding commitment)
-- ✅ **Verification**: Fast (~1 ms, no polynomial interpolation)
-- ✅ **NTT**: Cooley-Tukey FFT — O(m log m) polynomial operations (M5.1 complete)
-- ✅ **Zero-Knowledge**: Polynomial blinding with ~1.5× prover overhead (M5.2 complete)
-- ✅ **Scaling**: Linear growth with m for large circuits (NTT dominates)
-
-**Performance Improvements** (M5 vs M4):
-- ✅ **1000× speedup** for large circuits (m > 2^10) via NTT
-- ✅ **Zero-knowledge** with acceptable 1.5× overhead
-- 🎯 **Target met**: <1s for m=2^10, <10s for m=2^15
-
-## 🔒 Security
-
-### Cryptographic Assumptions
-- **Module-LWE**: (n=4096, k=2, q=17592186044423, σ=3.19) → 128-bit quantum security
-- **Soundness**: ε ≤ 2^-48 (dual-challenge Fiat-Shamir: α, β independent)
-- **Modulus**: 17592186044423 (prime near 2^44, verified)
-- **Random Oracle**: SHAKE256 for challenge derivation (QROM-safe)
-
-### Implementation Status
-- ✅ **R1CS Prover/Verifier**: Working (117/118 tests passing)
-- ✅ **Dual-Challenge**: Two independent Fiat-Shamir challenges
-- ✅ **LWE Commitment**: SEAL-based implementation
-- ✅ **Zero-Knowledge**: Polynomial blinding implemented (M5.2 complete)
-- ✅ **NTT Optimization**: Cooley-Tukey FFT O(m log m) (M5.1 complete)
-- 🟡 **Constant-Time**: Partial (modular arithmetic needs audit)
-
-### Known Issues
-- **Non-prime modulus bug**: Fixed in commit d89f201 (2^44+1 was composite!)
-- **VULN-001 (ZK leakage)**: Fixed in commit 954386c (M5.2 polynomial blinding)
-- **Performance regression**: 1 test shows 1.53× ZK overhead (target 1.10×, acceptable)
-
-## 📚 Documentation
-
-- **[Formal Specification](docs/spec/specification.sdoc)**: StrictDoc requirements (security, API, performance)
-- **[CLI Examples](rust-api/lambda-snark-cli/EXAMPLES.md)**: Complete usage guide with examples
-- **[API Reference](https://docs.rs/lambda-snark)**: Rust API docs (when published)
-- **[Architecture](docs/architecture.md)**: System design and component interaction
-- **[Roadmap](ROADMAP.md)**: Development milestones M1-M10 + v1.0.0 plan
-- **[Changelog](CHANGELOG.md)**: Version history and updates
-- **[Security](SECURITY.md)**: Threat model, known issues, audit status
-
-### Project Status (November 2025)
-
-- ✅ **M1-M3**: Foundation, LWE context, sparse matrices
-- ✅ **M4**: R1CS subsystem (prover/verifier complete)
-  - M4.4: Polynomial operations (Lagrange O(m²))
-  - M4.5: Verifier with dual-challenge soundness
-  - M4.6: Comprehensive rustdoc
-  - M4.7: CLI with r1cs-example + range-proof-example
-  - M4.8: Benchmark suite
-- ✅ **M5**: Optimizations (NTT + Zero-Knowledge)
-  - M5.1: ✅ Cooley-Tukey NTT — O(m log m) FFT (1000× speedup)
-  - M5.2: ✅ Zero-knowledge via polynomial blinding (Q' = Q + r·Z_H)
-- 🔜 **M6**: Documentation consolidation (in progress)
-- 🔜 **M7**: Final testing + alpha release
-
-## 🧪 Testing
-
-```bash
-# R1CS unit tests (98 tests)
-cd rust-api/lambda-snark
-cargo test
-
-# Integration tests (60 tests)
-cargo test --test '*'
-
-# CLI examples (manual verification)
-cd ../lambda-snark-cli
-cargo run --release -- r1cs-example
-cargo run --release -- range-proof-example
-cargo run --release -- benchmark
-
-# Full test suite
-cargo test --workspace
-```
-
-**Test Coverage** (M5):
-- ✅ 100+ unit tests (modular arithmetic, NTT, sparse matrices, R1CS)
-- ✅ 62+ integration tests (prover/verifier soundness, ZK properties, test vectors)
-- ✅ 3 CLI examples (multiplication, range proof, benchmark)
-- **Total**: 117/118 automated tests passing (1 performance regression) + 3 manual examples
-
-## 🤝 Contributing
-
-We follow **Trunk-Based Development** (TBD):
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Commit with [Conventional Commits](https://www.conventionalcommits.org/)
-4. Ensure tests pass: `make test`
-5. Run pre-commit hooks: `pre-commit run --all-files`
-6. Submit a Pull Request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
-
-## 📄 License
-
-Licensed under either of:
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT License ([LICENSE-MIT](LICENSE-MIT))
-
-at your option.
-
-## 🔗 Links
-
-- **Repository**: [github.com/SafeAGI-lab/Lambda-SNARK-R](https://github.com/SafeAGI-lab/Lambda-SNARK-R)
-- **CLI Examples**: [EXAMPLES.md](rust-api/lambda-snark-cli/EXAMPLES.md)
-- **Issues**: [GitHub Issues](https://github.com/SafeAGI-lab/Lambda-SNARK-R/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/SafeAGI-lab/Lambda-SNARK-R/discussions)
-
-## 📞 Contact
-
-- **Issues**: [GitHub Issues](https://github.com/SafeAGI-lab/Lambda-SNARK-R/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/SafeAGI-lab/Lambda-SNARK-R/discussions)
+> Project status: **Alpha / M7 stabilization** — suitable for experimentation, not production-ready.
 
 ---
 
-**⚠️ DISCLAIMER**: This is research-grade software under active development. 
+## Highlights (M7)
+- R1CS→ΛSNARK pipeline with dual Fiat–Shamir challenges.
+- Microsoft SEAL commitments exposed via safe Rust FFI and CLI workflows.
+- Lean project `formal/` with completed soundness proof and active zero-knowledge development.
+- Deterministic test vectors and a healthcare walkthrough that emit Lean artifacts.
 
-**Current Status (M5 Complete)**:
-- ✅ R1CS prover/verifier working with 117/118 tests passing
-- ✅ Zero-knowledge implemented (polynomial blinding, ~1.5× overhead)
-- ✅ NTT optimization complete (O(m log m), 1000× speedup for large m)
-- ✅ 3 CLI examples demonstrating multiplication, range proofs, benchmarks
-- ⚠️ **NOT production-ready** (needs security audit, constant-time review)
-- ⚠️ **Performance regression**: 1 test exceeds 1.10× ZK overhead target (1.53× actual)
+---
 
-Do not use in production until:
-1. Security audit performed (ZK soundness, timing attacks)
-2. Constant-time implementation validated
-3. Performance regression resolved (ZK overhead optimization)
+## Layout
+```
+.
+├── rust-api/           # Crates: lambda-snark, core, cli, sys
+├── cpp-core/           # C++ NTT + commitments (SEAL)
+├── formal/             # Lake + Lean 4 proofs
+├── docs/               # MkDocs site, architecture notes
+├── test-vectors/       # Canonical inputs/outputs
+├── artifacts/          # Generated Lean/R1CS artifacts
+└── scripts/            # Bootstrap and CI helpers
+```
 
-**Target for production use**: Q2-Q3 2026 after full audit.
+---
+
+## Getting Started
+
+### Prerequisites
+- Rust 1.77+ (`rustup`, add `clippy`, `rustfmt`).
+- C++20 toolchain, CMake 3.26+, Ninja (recommended).
+- vcpkg (`./scripts/setup.sh`) for Microsoft SEAL dependencies.
+- Python 3.11+ for docs and automation.
+- Lean 4 via Lake (`formal/lean-toolchain`).
+
+### Build & Test
+```bash
+# Rust workspace
+cd rust-api
+cargo build --workspace
+cargo test --workspace
+
+# C++ core
+cd ../cpp-core
+cmake -S . -B build -G Ninja
+cmake --build build
+ctest --test-dir build
+
+# Lean proofs
+cd ../formal
+lake build LambdaSNARK
+```
+
+### CLI Example
+```bash
+cargo run -p lambda-snark-cli --release -- healthcare \
+  --input ../test-vectors/tv-0-linear-system/input.json
+# Output: artifacts/r1cs/healthcare.term (treat as sensitive if witnesses are real).
+```
+
+See `PROJECT_SETUP.md` and `TESTING.md` for extended guidance.
+
+---
+
+## Current Capabilities
+- NTT-friendly modulus 17592169062401 (M7.2) with precomputed roots of unity.
+- Zero-knowledge blinding (M5.2) validated via simulator tests.
+- 150+ unit/integration checks across Rust, C++, and Lean layers; healthcare shared module in sync.
+- Lean build (`lake build`) succeeds; soundness theorem proven in `formal/` (M8), zero-knowledge proof underway.
+
+---
+
+## Limitations
+- Modular arithmetic is not constant-time (timing leakage) until M7.5.
+- FFI sanitizers and fuzzing harnesses are queued (Q1 2026).
+- External audit (Trail of Bits/NCC Group) planned for M10.
+- Lean zero-knowledge proof is still in progress (`formal/`); soundness is proven (M8).
+
+Risk register and mitigations are tracked in `SECURITY.md`.
+
+---
+
+## Standards
+- Run `cargo fmt` and `cargo clippy --workspace --all-targets`.
+- Execute `cargo test -p lambda-snark --no-run` before PRs.
+- C++ checks: `ctest --test-dir cpp-core/build`.
+- Lean: `lake build LambdaSNARK`.
+- Do not commit sensitive artifacts outside `artifacts/`.
+
+---
+
+## Roadmap (excerpt)
+- ✅ M5.1: O(m log m) NTT implementation.
+- ✅ M5.2: Zero-knowledge blinding and simulator tests.
+- ✅ M7.2: Prime modulus swap and soundness restoration.
+- 🔄 M7.4: Expand to >200 tests (property, fuzz).
+- 🔄 M7.5: Constant-time rewrite validated with dudect.
+- ✅ M8: Lean soundness proof finalized; zero-knowledge proof continues in M9.
+- 🔜 M9: Lean zero-knowledge proof scripts.
+- 🔜 M10: External audit and hardening backlog.
+
+Full milestone map lives in `ROADMAP.md`.
+
+---
+
+## Community
+- Issues: GitHub tracker (non-security).
+- Security: follow `SECURITY.md` (email, PGP).
+- Discussions: GitHub Discussions, SafeAGI Zulip `#lambda-snark`.
+- Contributing: read `CONTRIBUTING.md`; security-sensitive changes need dual review.
+
+---
+
+## License
+Dual-licensed under [MIT](LICENSE-MIT) and [Apache-2.0](LICENSE-APACHE); contributions imply agreement with both.
+
+---
+
+Last updated: 2025-11-23

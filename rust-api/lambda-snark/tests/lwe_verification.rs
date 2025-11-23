@@ -9,7 +9,7 @@
 //! SEAL's built-in verification functions.
 
 use lambda_snark::{
-    generate_opening, verify_opening_with_context, Commitment, LweContext, Opening, Polynomial,
+    generate_opening, verify_opening_with_context, Commitment, LweContext, Polynomial,
 };
 use lambda_snark_core::{Field, Params, Profile, SecurityLevel};
 

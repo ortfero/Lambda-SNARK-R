@@ -110,8 +110,15 @@ pub enum Error {
 
 /// Proving key (stub).
 pub struct ProvingKey {
-    ctx: LweContext,
+    context: LweContext,
     // TODO: Add R1CS matrices, etc.
+}
+
+impl ProvingKey {
+    /// Access the underlying LWE context for commitment generation.
+    pub fn context(&self) -> &LweContext {
+        &self.context
+    }
 }
 
 /// Verifying key (stub).
@@ -391,7 +398,7 @@ pub fn setup(params: Params) -> Result<(ProvingKey, VerifyingKey), Error> {
 
     let ctx = LweContext::new(params)?;
 
-    Ok((ProvingKey { ctx }, VerifyingKey {}))
+    Ok((ProvingKey { context: ctx }, VerifyingKey {}))
 }
 
 /// Generate proof for witness (non-zero-knowledge version).
@@ -1219,10 +1226,11 @@ pub fn verify_r1cs_zk(proof: &ProofR1csZk, public_inputs: &[u64], r1cs: &R1CS) -
 ///
 /// Returns error if witness doesn't satisfy R1CS or proving fails.
 pub fn prove(
-    _pk: &ProvingKey,
+    pk: &ProvingKey,
     _public_input: &[Field],
     _witness: &[Field],
 ) -> Result<Proof, Error> {
+    let _ctx = pk.context();
     // TODO: Implement full R1CS prover
     Err(Error::Ffi(
         "R1CS prover not implemented yet, use prove_simple()".to_string(),

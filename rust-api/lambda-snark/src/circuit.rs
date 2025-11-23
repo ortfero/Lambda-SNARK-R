@@ -399,6 +399,7 @@ mod tests {
         let mut builder = CircuitBuilder::new(MODULUS);
 
         let one = builder.alloc_var(); // z_0 = 1
+        assert_eq!(one, 0, "First allocation must bind the constant 1");
         let a = builder.alloc_var(); // z_1 = 7
         let b = builder.alloc_var(); // z_2 = 13
         let c = builder.alloc_var(); // z_3 = 91
@@ -428,6 +429,7 @@ mod tests {
         let mut builder = CircuitBuilder::new(MODULUS);
 
         let one = builder.alloc_var(); // z_0 = 1
+        assert_eq!(one, 0, "First allocation must bind the constant 1");
         let a = builder.alloc_var(); // z_1 = 2
         let b = builder.alloc_var(); // z_2 = 3
         let c = builder.alloc_var(); // z_3 = 6

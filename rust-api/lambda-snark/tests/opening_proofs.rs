@@ -112,7 +112,6 @@ fn test_opening_pipeline_tv2() {
 #[test]
 fn test_opening_deterministic() {
     // Same inputs → same opening
-    let ctx = test_context();
     let randomness = 0xABCD;
 
     let polynomial = Polynomial::from_witness(&[1, 2, 3, 4], TEST_MODULUS);
@@ -136,7 +135,6 @@ fn test_opening_deterministic() {
 #[test]
 fn test_opening_different_challenges() {
     // Different challenge points → different evaluations
-    let ctx = test_context();
     let randomness = 0x9999;
 
     let polynomial = Polynomial::from_witness(&[1, 7, 13, 91], TEST_MODULUS);

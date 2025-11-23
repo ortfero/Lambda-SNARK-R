@@ -1,9 +1,9 @@
 //! Dump quotient polynomial coefficients for the healthcare example.
 
+#[path = "healthcare/shared.rs"]
 mod healthcare_circuit;
 
-use healthcare_circuit::{build_healthcare_circuit, high_risk_witness};
-use lambda_snark::R1CS;
+use healthcare_circuit::{artifacts_dir, build_healthcare_circuit, high_risk_witness};
 use serde::Serialize;
 use std::error::Error;
 
@@ -30,6 +30,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let json = serde_json::to_string_pretty(&dump)?;
     println!("{}", json);
+
+    let mut suggested_path = artifacts_dir();
+    suggested_path.push("healthcare_quotient.json");
+    println!(
+        "Suggested quotient dump destination: {}",
+        suggested_path.display()
+    );
 
     Ok(())
 }

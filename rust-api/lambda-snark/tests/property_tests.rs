@@ -29,16 +29,6 @@ fn arb_field(modulus: u64) -> impl Strategy<Value = u64> {
     (1u64..modulus).prop_map(move |x| x)
 }
 
-/// Generate small constraint count (for fast tests)
-fn arb_small_m() -> impl Strategy<Value = usize> {
-    prop_oneof![Just(1), Just(2), Just(4), Just(8),]
-}
-
-/// Generate valid witness size
-fn arb_witness_size() -> impl Strategy<Value = usize> {
-    (4usize..32).prop_map(|x| x)
-}
-
 // ============================================================================
 // Polynomial Properties
 // ============================================================================
@@ -355,7 +345,7 @@ proptest! {
     /// Property: ZK blinding doesn't break verification
     #[test]
     fn zk_blinding_preserves_verification(
-        witness in prop::collection::vec((2u64..1000), 4),
+        witness in prop::collection::vec(2u64..1000, 4),
         seed in any::<u64>(),
     ) {
         use rand::SeedableRng;

@@ -3,7 +3,7 @@
 //! Focus: lib.rs (prove_r1cs, prove_r1cs_zk, verify_r1cs, verify_r1cs_zk)
 
 use lambda_snark::*;
-use lambda_snark_core::{Field, Profile, SecurityLevel};
+use lambda_snark_core::{Profile, SecurityLevel};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
@@ -348,6 +348,11 @@ fn test_verify_rejects_wrong_public_input() {
 
     let proof = prove_r1cs(&r1cs, &witness, &ctx, 0xFFFF).unwrap();
 
+    assert!(
+        verify_r1cs(&proof, &public_inputs, &r1cs),
+        "Baseline public input verification must succeed"
+    );
+
     // Verify with wrong public input
     let wrong_public_inputs = vec![2]; // Should be 1
     assert!(!verify_r1cs(&proof, &wrong_public_inputs, &r1cs));
@@ -372,6 +377,11 @@ fn test_verify_zk_rejects_wrong_public_input() {
     let mut rng = ChaCha20Rng::seed_from_u64(0xFEED);
 
     let proof = prove_r1cs_zk(&r1cs, &witness, &ctx, &mut rng, 0xFFFF).unwrap();
+
+    assert!(
+        verify_r1cs_zk(&proof, &public_inputs, &r1cs),
+        "Baseline public input verification must succeed"
+    );
 
     let wrong_public_inputs = vec![42];
     assert!(!verify_r1cs_zk(&proof, &wrong_public_inputs, &r1cs));
@@ -467,7 +477,7 @@ fn test_prove_verify_large_witness_32() {
     let r1cs = R1CS::new(m, n, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
 
     let mut witness = vec![1];
-    for i in 1..n {
+    for _ in 1..n {
         witness.push(2);
     }
 

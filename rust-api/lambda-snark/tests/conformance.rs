@@ -3,8 +3,8 @@
 //! These tests validate cross-language compatibility by loading
 //! standardized test vectors and verifying expected behavior.
 
-use lambda_snark::{Field, Params, Profile, SecurityLevel};
-use serde::{Deserialize, Serialize};
+use lambda_snark::{Params, Profile, SecurityLevel};
+use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 
@@ -66,6 +66,22 @@ fn load_test_vector(
     )
     .expect("Failed to parse params.json");
 
+    assert!(
+        !params_json.description.trim().is_empty(),
+        "params.json must include a description"
+    );
+
+    let seed_str = params_json.random_seed.trim_start_matches("0x");
+    u64::from_str_radix(seed_str, 16).expect("random_seed must be hexadecimal");
+
+    let profile_label = params_json.profile.profile_type.as_str();
+    assert!(
+        profile_label.eq_ignore_ascii_case("ringb")
+            || profile_label.eq_ignore_ascii_case("ring-b"),
+        "Unsupported profile type: {}",
+        profile_label
+    );
+
     let input: TestVectorInput = serde_json::from_str(
         &fs::read_to_string(base.join("input.json")).expect("Failed to read input.json"),
     )
@@ -80,6 +96,11 @@ fn load_test_vector(
         &fs::read_to_string(base.join("expected.json")).expect("Failed to read expected.json"),
     )
     .expect("Failed to parse expected.json");
+
+    assert!(
+        expected.extra.is_object(),
+        "expected.json extra metadata must be an object"
+    );
 
     let sec_level = match params_json.security_level {
         128 => SecurityLevel::Bits128,
@@ -106,6 +127,15 @@ fn test_tv0_linear_system() {
 
     // Validate parameters
     assert!(params.validate().is_ok(), "Parameters should be valid");
+
+    assert!(
+        input.data.as_object().is_some(),
+        "TV-0 input must be a JSON object"
+    );
+    assert!(
+        witness.data.as_array().is_some() || witness.data.as_object().is_some(),
+        "TV-0 witness must be structured JSON"
+    );
 
     // For now, just verify we can load the test vector
     // TODO: Implement full prove/verify once prover is ready
@@ -156,6 +186,11 @@ fn test_tv2_plaquette() {
 
     // Validate parameters
     assert!(params.validate().is_ok(), "Parameters should be valid");
+
+    assert!(
+        input.data.get("public").is_some(),
+        "TV-2 input must expose public inputs"
+    );
 
     // Extract witness angles
     let witness_obj = witness

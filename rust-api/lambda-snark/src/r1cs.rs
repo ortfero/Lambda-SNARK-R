@@ -1824,7 +1824,10 @@ mod tests {
         let lhs = ((q_alpha as u128 * zh_alpha as u128) % r1cs.modulus as u128) as u64;
 
         // A_z(α) * B_z(α) - C_z(α)
-        let ab_alpha = ((a_alpha as u128 * b_alpha as u128) % r1cs.modulus as u128) as u64;
+        let ab_alpha = eval_poly(&ab_poly, alpha, r1cs.modulus);
+        let ab_alpha_expected =
+            ((a_alpha as u128 * b_alpha as u128) % r1cs.modulus as u128) as u64;
+        assert_eq!(ab_alpha, ab_alpha_expected, "A_z·B_z evaluation must match direct product");
         let rhs = if ab_alpha >= c_alpha {
             ab_alpha - c_alpha
         } else {

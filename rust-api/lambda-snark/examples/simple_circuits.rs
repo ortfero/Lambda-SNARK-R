@@ -28,6 +28,7 @@ pub fn multiplication_gate() -> (R1CS, Vec<u64>) {
 
     // Variables: z_0=1 (constant), z_1=a, z_2=b, z_3=c
     let one = builder.alloc_var();
+    debug_assert_eq!(one, 0, "First allocation must target the constant slot");
     let a = builder.alloc_var();
     let b = builder.alloc_var();
     let c = builder.alloc_var();
@@ -56,6 +57,7 @@ pub fn two_multiplications() -> (R1CS, Vec<u64>) {
     let mut builder = CircuitBuilder::new(MODULUS);
 
     let one = builder.alloc_var(); // z_0 = 1
+    debug_assert_eq!(one, 0, "First allocation must target the constant slot");
     let a = builder.alloc_var(); // z_1 = 2
     let b = builder.alloc_var(); // z_2 = 3
     let c = builder.alloc_var(); // z_3 = 6
@@ -87,6 +89,7 @@ pub fn addition_gate() -> (R1CS, Vec<u64>) {
     let mut builder = CircuitBuilder::new(MODULUS);
 
     let one = builder.alloc_var(); // z_0 = 1
+    debug_assert_eq!(one, 0, "First allocation must target the constant slot");
     let a = builder.alloc_var(); // z_1 = 15
     let b = builder.alloc_var(); // z_2 = 27
     let c = builder.alloc_var(); // z_3 = 42
@@ -119,6 +122,7 @@ pub fn subtraction_gate() -> (R1CS, Vec<u64>) {
     let mut builder = CircuitBuilder::new(MODULUS);
 
     let one = builder.alloc_var(); // z_0 = 1
+    debug_assert_eq!(one, 0, "First allocation must target the constant slot");
     let a = builder.alloc_var(); // z_1 = 50
     let b = builder.alloc_var(); // z_2 = 13
     let c = builder.alloc_var(); // z_3 = 37
@@ -206,6 +210,7 @@ pub fn boolean_and() -> (R1CS, Vec<u64>) {
     let mut builder = CircuitBuilder::new(MODULUS);
 
     let one = builder.alloc_var(); // z_0 = 1
+    debug_assert_eq!(one, 0, "First allocation must target the constant slot");
     let a = builder.alloc_var(); // z_1 = 1 (boolean)
     let b = builder.alloc_var(); // z_2 = 1 (boolean)
     let c = builder.alloc_var(); // z_3 = 1 (result)
@@ -247,6 +252,7 @@ pub fn boolean_xor() -> (R1CS, Vec<u64>) {
     let mut builder = CircuitBuilder::new(MODULUS);
 
     let one = builder.alloc_var(); // z_0 = 1
+    debug_assert_eq!(one, 0, "First allocation must target the constant slot");
     let a = builder.alloc_var(); // z_1 = 1 (boolean)
     let b = builder.alloc_var(); // z_2 = 0 (boolean)
     let c = builder.alloc_var(); // z_3 = 1 (result: 1 XOR 0)
@@ -297,6 +303,7 @@ pub fn fibonacci() -> (R1CS, Vec<u64>) {
     let mut builder = CircuitBuilder::new(MODULUS);
 
     let one = builder.alloc_var(); // z_0 = 1
+    debug_assert_eq!(one, 0, "First allocation must target the constant slot");
     let f0 = builder.alloc_var(); // z_1 = 0
     let f1 = builder.alloc_var(); // z_2 = 1
     let f2 = builder.alloc_var(); // z_3 = 1
@@ -456,6 +463,7 @@ mod tests {
         let mut builder = CircuitBuilder::new(MODULUS);
 
         let one = builder.alloc_var();
+        debug_assert_eq!(one, 0, "First allocation must target the constant slot");
         let a = builder.alloc_var();
         let b = builder.alloc_var();
         let c = builder.alloc_var();
@@ -484,6 +492,7 @@ mod tests {
         let mut builder = CircuitBuilder::new(MODULUS);
 
         let one = builder.alloc_var();
+        debug_assert_eq!(one, 0, "First allocation must target the constant slot");
         let a = builder.alloc_var();
         let b = builder.alloc_var();
         let c = builder.alloc_var();

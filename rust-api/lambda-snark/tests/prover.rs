@@ -1,7 +1,7 @@
 //! Prover integration tests for full SNARK workflow.
 
 use lambda_snark::{
-    generate_opening, prove_simple, verify_opening, Challenge, LweContext, Polynomial, Proof,
+    generate_opening, prove_simple, verify_opening, Challenge, LweContext, Polynomial,
 };
 use lambda_snark_core::{Params, Profile, SecurityLevel};
 use std::time::Instant;
