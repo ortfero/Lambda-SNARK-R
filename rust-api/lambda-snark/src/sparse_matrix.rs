@@ -26,6 +26,8 @@
 
 use std::collections::HashMap;
 
+use crate::arith::{add_mod, mul_mod};
+
 /// Sparse matrix in CSR (Compressed Sparse Row) format.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SparseMatrix {
@@ -269,18 +271,18 @@ impl SparseMatrix {
             let start = self.row_ptr[row];
             let end = self.row_ptr[row + 1];
 
-            let mut sum = 0u128; // Use u128 to avoid overflow
+            let mut sum = 0u64;
 
             for i in start..end {
                 let col = self.col_indices[i];
                 let val = self.values[i];
 
-                // Compute val * v[col] mod modulus
-                sum += (val as u128) * (v[col] as u128);
-                sum %= modulus as u128;
+                // Constant-time modular multiply and accumulate
+                let term = mul_mod(val % modulus, v[col] % modulus, modulus);
+                sum = add_mod(sum, term, modulus);
             }
 
-            result[row] = sum as u64;
+            result[row] = sum;
         }
 
         result

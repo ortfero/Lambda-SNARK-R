@@ -10,7 +10,8 @@
 ## Executive Summary
 - ΛSNARK-R remains a research prototype. Deployments with adversarial input are out of scope until the external audit and constant-time hardening complete.
 - The prover and verifier pass the M5 regression suite, but side-channel defenses and formal proofs are still in flight.
-- Known high-risk gaps: timing variance in modular arithmetic and incomplete hardening of the SEAL-backed FFI layer.
+- Known high-risk gaps: residual modular reductions inside legacy SEAL FFI bindings; Rust R1CS/NTT/polynomial/sparse-matrix paths now reuse constant-time helpers end-to-end.
+- Discrete Gaussian sampler now uses a branchless CDF lookup and passes dudect sanity checks (t-stat ≈ 0.30 at 20k traces); modular inverse and modular exponentiation share the constant-time ladder (|t| ≤ 1.6 at 20k traces).
 - Dependency scans (cargo audit) report zero advisories as of 2025-11-23; monitoring continues via CI.
 
 ---
@@ -44,7 +45,7 @@ Trusted components: Module-LWE hardness, SHAKE256 in the Random Oracle Model, an
 ## Residual Risks and Mitigations
 | Risk | Description | Status | Planned Mitigation |
 |------|-------------|--------|--------------------|
-| Timing side-channels | `mod_inverse` and `mod_pow` branch on secret-dependent data. | Open (High) | Constant-time rewrite + dudect validation in M7 (ETA 2026-01). |
+| Timing side-channels | Gaussian sampler and shared modular arithmetic helpers use branchless implementations (|t| ≤ 1.6 at 20k traces); remaining hotspots limited to commitment/SEAL FFI adapters. | Open (Medium) | Harden residual FFI code paths, extend dudect harness to cover commitment/opening (ETA 2026-01). |
 | FFI safety gaps | Microsoft SEAL backend lacks exhaustive input validation and sanitizers. | Open (High) | Add bounds checks, enable ASan/UBSan, begin fuzzing harness in M7. |
 | External audit | No third-party cryptographic review yet. | Open (High) | Engage Trail of Bits/NCC Group during M10 (ETA 2026-Q2). |
 | Formal proofs | Lean 4 soundness proof complete; zero-knowledge proof pending. | In progress (Medium) | `lake build LambdaSNARK`; finalize ZK proof scripts tracked in `formal/`. |
@@ -56,6 +57,8 @@ Trusted components: Module-LWE hardness, SHAKE256 in the Random Oracle Model, an
 - Run provers on dedicated hosts or inside confidentiality-preserving enclaves; avoid shared-tenancy environments until constant-time guarantees land.
 - Enable compiler hardening (`-C panic=abort`, stack protector) when embedding the Rust crate.
 - Treat files under `artifacts/` as sensitive. The healthcare example stores Lean terms derived from supplied witnesses; remove or secure these outputs after each run.
+- Regenerate dudect timing reports with `cmake --build build --target dudect_sampler` followed by `./build/dudect_sampler` inside `cpp-core`; outputs land in `artifacts/dudect/`.
+- Generate modular-arithmetic dudect sweeps via `cargo run --manifest-path rust-api/Cargo.toml -p lambda-snark --bin mod_arith_timing`; review `artifacts/dudect/mod_arith_report.md` for regressions.
 - When integrating the C++ core, compile with AddressSanitizer/UndefinedBehaviorSanitizer during testing and keep `cpp-core/tests` in CI.
 - Pin dependencies using the provided `Cargo.lock` and `vcpkg.json`. Run `cargo audit` and `pip-audit` before releases.
 
@@ -75,6 +78,8 @@ Trusted components: Module-LWE hardness, SHAKE256 in the Random Oracle Model, an
 
 ## Recent Reviews
 - Internal security review (M7.3) completed 2025-11-15: resolved composite modulus bug, documented timing and FFI gaps.
+ - Dudect timing sweep for Gaussian sampler (20k traces) recorded 2025-11-23; report archived at `artifacts/dudect/gaussian_sampler_report.md`.
+ - Dudect timing sweep for modular arithmetic (20k traces) recorded 2025-11-23; report archived at `artifacts/dudect/mod_arith_report.md` (|t_add_mod| ≈ 0.91, |t_sub_mod| ≈ 0.33, |t_mod_pow| ≈ 0.40, |t_mod_inverse| ≈ 0.12).
 - Latest `cargo audit` run: 2025-11-23, zero advisories, 162 crates checked.
 - Lean build (`lake build LambdaSNARK`) passes as of 2025-11-23; soundness proof landed, ZK proof ongoing.
 

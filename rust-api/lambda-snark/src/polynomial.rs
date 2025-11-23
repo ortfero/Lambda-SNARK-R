@@ -2,6 +2,7 @@
 //!
 //! This module provides polynomial representation and evaluation for witness encoding.
 
+use crate::arith::{add_mod, mul_mod};
 use lambda_snark_core::Field;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
@@ -100,12 +101,12 @@ impl Polynomial {
 
         // Horner's method: f(x) = a_0 + x(a_1 + x(a_2 + x(...)))
         let mut result = self.coeffs.last().unwrap().value();
+        let alpha_val = alpha.value();
 
         for coeff in self.coeffs.iter().rev().skip(1) {
-            // result = result * alpha + coeff (mod q)
-            result = ((mul_mod(result, alpha.value(), self.modulus) as u128
-                + coeff.value() as u128)
-                % self.modulus as u128) as u64;
+            // Horner step with constant-time modular helpers
+            let product = mul_mod(result, alpha_val, self.modulus);
+            result = add_mod(product, coeff.value(), self.modulus);
         }
 
         Field::new(result)
@@ -224,7 +225,7 @@ impl Polynomial {
         for i in 0..max_len {
             let a = self.coeffs.get(i).map(|f| f.value()).unwrap_or(0);
             let b = other.coeffs.get(i).map(|f| f.value()).unwrap_or(0);
-            result.push(Field::new((a + b) % self.modulus));
+            result.push(Field::new(add_mod(a, b, self.modulus)));
         }
 
         Self {
@@ -237,13 +238,6 @@ impl Polynomial {
     pub fn modulus(&self) -> u64 {
         self.modulus
     }
-}
-
-/// Modular multiplication: (a * b) mod m
-///
-/// Uses 128-bit intermediate to avoid overflow.
-fn mul_mod(a: u64, b: u64, m: u64) -> u64 {
-    ((a as u128 * b as u128) % m as u128) as u64
 }
 
 #[cfg(test)]
@@ -334,18 +328,19 @@ mod tests {
         let p = Polynomial::from_witness(&witness, TEST_MODULUS);
         let alpha = 123u64;
 
-        // Direct: 1 + 2·123 + 3·123² + 4·123³ + 5·123⁴
-        let mut direct = 1u128;
-        let mut power = 1u128;
-        for &coeff in &witness[1..] {
-            power = (power * alpha as u128) % TEST_MODULUS as u128;
-            direct = (direct + coeff as u128 * power) % TEST_MODULUS as u128;
+        // Direct evaluation via modular helpers
+        let mut direct = 0u64;
+        let mut power = 1u64;
+        for &coeff in &witness {
+            let term = mul_mod(coeff % TEST_MODULUS, power, TEST_MODULUS);
+            direct = add_mod(direct, term, TEST_MODULUS);
+            power = mul_mod(power, alpha % TEST_MODULUS, TEST_MODULUS);
         }
 
         // Horner
         let horner = p.evaluate(Field::new(alpha)).value();
 
-        assert_eq!(horner, direct as u64);
+        assert_eq!(horner, direct);
     }
 
     // --- Zero-Knowledge: Blinding Polynomial Tests ---
@@ -471,7 +466,11 @@ mod tests {
         let sum = f.add(&g);
 
         // (f + g)(α) = f(α) + g(α)
-        let expected = (f.evaluate(alpha).value() + g.evaluate(alpha).value()) % TEST_MODULUS;
+        let expected = add_mod(
+            f.evaluate(alpha).value(),
+            g.evaluate(alpha).value(),
+            TEST_MODULUS,
+        );
         assert_eq!(sum.evaluate(alpha).value(), expected);
     }
 
@@ -497,7 +496,11 @@ mod tests {
 
         // But evaluation relationship holds: blinded(α) = f(α) + r(α)
         let alpha = Field::new(123);
-        let expected = (f.evaluate(alpha).value() + r.evaluate(alpha).value()) % TEST_MODULUS;
+        let expected = add_mod(
+            f.evaluate(alpha).value(),
+            r.evaluate(alpha).value(),
+            TEST_MODULUS,
+        );
         assert_eq!(blinded.evaluate(alpha).value(), expected);
     }
 }

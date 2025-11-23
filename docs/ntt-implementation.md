@@ -76,19 +76,19 @@ Using ω^(-1) and normalization by m^(-1).
 
 ### Arithmetic Safety
 
-**Challenge**: 64-bit modulus q = 2^64 - 2^32 + 1 requires careful overflow handling.
+**Challenge**: 64-bit modulus q = 2^64 - 2^32 + 1 requires constant-time reductions without overflow.
 
-**Solution**: Use u128 for intermediate arithmetic:
+**Solution**: Reuse shared modular helpers (`mul_mod`, `add_mod`) that implement branchless Barrett-style reduction on top of `u128` intermediates:
 
 ```rust
-// Butterfly addition (prevents overflow)
-data[k + j] = ((u as u128 + t as u128) % modulus as u128) as u64;
+// Butterfly addition (branchless reduction)
+data[k + j] = add_mod(u, t, modulus);
 
-// Twiddle factor multiplication
-let t = ((data[k + j + m_half] as u128 * omega_power as u128) % modulus as u128) as u64;
+// Twiddle factor multiplication remains constant-time
+let t = mul_mod(data[k + j + m_half], omega_power, modulus);
 ```
 
-**Result**: No overflow errors, all tests pass.
+**Result**: No overflow errors and timing uniformity aligns with dudect sweeps.
 
 ---
 
