@@ -11,7 +11,7 @@
 - ΛSNARK-R remains a research prototype. Deployments with adversarial input are out of scope until the external audit and constant-time hardening complete.
 - The prover and verifier pass the M5 regression suite, but side-channel defenses and formal proofs are still in flight.
 - Known high-risk gaps: residual modular reductions inside legacy SEAL FFI bindings; Rust R1CS/NTT/polynomial/sparse-matrix paths now reuse constant-time helpers end-to-end.
-- Discrete Gaussian sampler now uses a branchless CDF lookup and passes dudect sanity checks (t-stat ≈ 0.30 at 20k traces); modular inverse and modular exponentiation share the constant-time ladder (|t| ≤ 1.6 at 20k traces).
+- Discrete Gaussian sampler now uses a branchless CDF lookup and passes dudect sanity checks (t-stat ≈ 2.03 at 20k traces); modular inverse/exponentiation ladder stays within |t| ≤ 1.0 at the same sample size, matching constant-time expectations.
 - Dependency scans (cargo audit) report zero advisories as of 2025-11-23; monitoring continues via CI.
 
 ---
@@ -78,9 +78,10 @@ Trusted components: Module-LWE hardness, SHAKE256 in the Random Oracle Model, an
 
 ## Recent Reviews
 - Internal security review (M7.3) completed 2025-11-15: resolved composite modulus bug, documented timing and FFI gaps.
- - Dudect timing sweep for Gaussian sampler (20k traces) recorded 2025-11-23; report archived at `artifacts/dudect/gaussian_sampler_report.md`.
- - Dudect timing sweep for modular arithmetic (20k traces) recorded 2025-11-23; report archived at `artifacts/dudect/mod_arith_report.md` (|t_add_mod| ≈ 0.91, |t_sub_mod| ≈ 0.33, |t_mod_pow| ≈ 0.40, |t_mod_inverse| ≈ 0.12).
+ - Dudect timing sweep for Gaussian sampler (20k traces) recorded 2025-11-23; report archived at `artifacts/dudect/gaussian_sampler_report.md` (t ≈ 2.03, still < 4.5 threshold).
+ - Dudect timing sweep for modular arithmetic (20k traces) recorded 2025-11-23; report archived at `artifacts/dudect/mod_arith_report.md` (|t_add_mod| ≈ 1.00, |t_sub_mod| ≈ 0.99, |t_mod_pow| ≈ 0.62, |t_mod_inverse| ≈ 0.84, |t_poly_eval| ≈ 0.87, |t_sparse_mul| ≈ 0.43).
  - Extended dudect harness now benchmarks polynomial evaluation and sparse matrix multiplication pathways alongside modular helpers; results captured in the same report file.
+ - C++ test suite (`ctest`) including the new Gaussian sampler coverage (`test_utils`) passes as of 2025-11-23.
 - Latest `cargo audit` run: 2025-11-23, zero advisories, 162 crates checked.
 - Lean build (`lake build LambdaSNARK`) passes as of 2025-11-23; soundness proof landed, ZK proof ongoing.
 
