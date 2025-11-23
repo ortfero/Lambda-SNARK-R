@@ -157,12 +157,20 @@ int export_vk_to_lean(
     if (!r1cs || !params || !out_buffer) return -1;
     
     try {
+        if (r1cs->n_public_inputs > r1cs->n_vars) {
+            fprintf(stderr,
+                    "export_vk_to_lean: n_public_inputs (%u) exceeds n_vars (%u)\n",
+                    r1cs->n_public_inputs,
+                    r1cs->n_vars);
+            return -1;
+        }
+
         std::ostringstream oss;
         
         // Anonymous constructor syntax: ⟨field1, field2, ...⟩
         oss << "⟨" << r1cs->n_constraints
             << ", " << r1cs->n_vars
-            << ", " << r1cs->n_vars  // TODO: separate n_public_inputs field
+            << ", " << r1cs->n_public_inputs
             << ", " << params->modulus
             << ", " << sparse_matrix_to_lean(r1cs->A)
             << ", " << sparse_matrix_to_lean(r1cs->B)

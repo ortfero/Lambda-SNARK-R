@@ -23,7 +23,7 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 mod tests {
     use super::*;
     use std::ptr;
-    
+
     #[test]
     fn test_lwe_context_create_null() {
         unsafe {
@@ -31,7 +31,7 @@ mod tests {
             assert!(ctx.is_null());
         }
     }
-    
+
     #[test]
     fn test_ntt_context_create_free() {
         unsafe {

@@ -2,6 +2,7 @@
 //!
 //! Implements opening generation and verification for ΛSNARK-R.
 
+use crate::arith::{add_mod, sub_mod};
 use crate::{Commitment, LweContext, Polynomial};
 use lambda_snark_core::Field;
 use lambda_snark_sys as ffi;
@@ -188,12 +189,16 @@ pub fn verify_opening_with_context(
     let expected_eval = polynomial.evaluate(alpha);
 
     // 4. Check evaluation matches
-    if opening.evaluation() != expected_eval {
+    let diff = sub_mod(opening.evaluation().value(), expected_eval.value(), modulus);
+    if diff != 0 {
         return false;
     }
 
     // 5. Verify LWE commitment binding via FFI
-    let message_u64: Vec<u64> = coeffs.iter().map(|f| f.value()).collect();
+    let message_u64: Vec<u64> = coeffs
+        .iter()
+        .map(|f| add_mod(f.value() % modulus, 0, modulus))
+        .collect();
 
     // Create LweOpening structure for FFI
     let randomness = vec![opening.witness()[0]];
@@ -253,7 +258,9 @@ pub fn verify_opening(
     let expected_eval = polynomial.evaluate(alpha);
 
     // 4. Check evaluation matches
-    opening.evaluation() == expected_eval
+    let diff = sub_mod(opening.evaluation().value(), expected_eval.value(), modulus);
+
+    diff == 0
 }
 
 #[cfg(test)]

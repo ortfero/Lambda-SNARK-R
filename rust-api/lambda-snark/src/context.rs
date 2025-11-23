@@ -6,6 +6,7 @@ use lambda_snark_sys as ffi;
 /// Safe wrapper for LWE context.
 pub struct LweContext {
     inner: *mut ffi::LweContext,
+    modulus: u64,
 }
 
 impl LweContext {
@@ -46,12 +47,20 @@ impl LweContext {
             return Err(Error::Core(CoreError::FfiError));
         }
 
-        Ok(LweContext { inner })
+        Ok(LweContext {
+            inner,
+            modulus: c_params.modulus,
+        })
     }
 
     /// Get raw pointer (for FFI calls).
     pub(crate) fn as_ptr(&self) -> *mut ffi::LweContext {
         self.inner
+    }
+
+    /// Retrieve the prime modulus associated with this context.
+    pub fn modulus(&self) -> u64 {
+        self.modulus
     }
 }
 
@@ -85,6 +94,9 @@ mod tests {
 
         let ctx = LweContext::new(params);
         assert!(ctx.is_ok());
-        // Drop happens here
+
+        let ctx = ctx.unwrap();
+        assert_eq!(ctx.modulus(), 17592186044417);
+        // Drop happens here when ctx goes out of scope
     }
 }

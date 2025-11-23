@@ -58,7 +58,7 @@
 //! );
 //! ```
 
-use crate::{SparseMatrix, R1CS};
+use crate::{arith::add_mod, SparseMatrix, R1CS};
 use std::collections::HashMap;
 
 /// Circuit builder for constructing R1CS instances
@@ -279,9 +279,9 @@ impl CircuitBuilder {
                     );
                 }
                 if coeff != 0 {
-                    *a_map.entry((constraint_idx, var_idx)).or_insert(0) =
-                        (a_map.get(&(constraint_idx, var_idx)).unwrap_or(&0) + coeff)
-                            % self.modulus;
+                    let entry = a_map.entry((constraint_idx, var_idx)).or_insert(0);
+                    let reduced = coeff % self.modulus;
+                    *entry = add_mod(*entry, reduced, self.modulus);
                 }
             }
 
@@ -294,9 +294,9 @@ impl CircuitBuilder {
                     );
                 }
                 if coeff != 0 {
-                    *b_map.entry((constraint_idx, var_idx)).or_insert(0) =
-                        (b_map.get(&(constraint_idx, var_idx)).unwrap_or(&0) + coeff)
-                            % self.modulus;
+                    let entry = b_map.entry((constraint_idx, var_idx)).or_insert(0);
+                    let reduced = coeff % self.modulus;
+                    *entry = add_mod(*entry, reduced, self.modulus);
                 }
             }
 
@@ -309,9 +309,9 @@ impl CircuitBuilder {
                     );
                 }
                 if coeff != 0 {
-                    *c_map.entry((constraint_idx, var_idx)).or_insert(0) =
-                        (c_map.get(&(constraint_idx, var_idx)).unwrap_or(&0) + coeff)
-                            % self.modulus;
+                    let entry = c_map.entry((constraint_idx, var_idx)).or_insert(0);
+                    let reduced = coeff % self.modulus;
+                    *entry = add_mod(*entry, reduced, self.modulus);
                 }
             }
         }

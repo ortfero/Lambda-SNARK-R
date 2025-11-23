@@ -37,59 +37,12 @@
 //! assert_eq!(coeffs, recovered);
 //! ```
 
+use crate::arith::{add_mod, mod_inverse as arith_mod_inverse, mod_pow, mul_mod, sub_mod};
 use crate::Error;
 
-/// Modular exponentiation: (base^exp) mod modulus
-///
-/// Uses binary exponentiation for O(log exp) complexity.
 #[inline]
-fn mod_pow(base: u64, mut exp: u64, modulus: u64) -> u64 {
-    if modulus == 1 {
-        return 0;
-    }
-
-    let mut result = 1u128;
-    let mut b = base as u128;
-    let m = modulus as u128;
-
-    while exp > 0 {
-        if exp & 1 == 1 {
-            result = (result * b) % m;
-        }
-        exp >>= 1;
-        b = (b * b) % m;
-    }
-
-    result as u64
-}
-
-/// Modular multiplicative inverse: a^(-1) mod m
-///
-/// Uses Extended Euclidean Algorithm.
-#[inline]
-fn mod_inverse(a: u64, m: u64) -> Result<u64, Error> {
-    if a == 0 {
-        return Err(Error::InvalidDimensions);
-    }
-
-    let (mut t, mut new_t) = (0i128, 1i128);
-    let (mut r, mut new_r) = (m as i128, a as i128);
-
-    while new_r != 0 {
-        let quotient = r / new_r;
-        (t, new_t) = (new_t, t - quotient * new_t);
-        (r, new_r) = (new_r, r - quotient * new_r);
-    }
-
-    if r > 1 {
-        return Err(Error::InvalidDimensions); // a not invertible
-    }
-
-    if t < 0 {
-        t += m as i128;
-    }
-
-    Ok(t as u64)
+fn mod_inverse(a: u64, modulus: u64) -> Result<u64, Error> {
+    arith_mod_inverse(a, modulus).ok_or(Error::InvalidDimensions)
 }
 
 /// Bit-reversal permutation for in-place NTT.
@@ -192,17 +145,15 @@ pub fn ntt_forward(coeffs: &[u64], modulus: u64, omega: u64) -> Vec<u64> {
             let mut omega_power = 1u64;
 
             for j in 0..m_half {
-                let t =
-                    ((data[k + j + m_half] as u128 * omega_power as u128) % modulus as u128) as u64;
+                let t = mul_mod(data[k + j + m_half], omega_power, modulus);
                 let u = data[k + j];
 
                 // Butterfly: (u, t) → (u + t, u - t)
-                // Use u128 to avoid overflow
-                data[k + j] = ((u as u128 + t as u128) % modulus as u128) as u64;
-                data[k + j + m_half] = if u >= t { u - t } else { modulus - (t - u) };
+                data[k + j] = add_mod(u, t, modulus);
+                data[k + j + m_half] = sub_mod(u, t, modulus);
 
                 // Update twiddle factor: ω^j → ω^(j+1)
-                omega_power = ((omega_power as u128 * omega_m as u128) % modulus as u128) as u64;
+                omega_power = mul_mod(omega_power, omega_m, modulus);
             }
         }
     }
@@ -243,7 +194,7 @@ pub fn ntt_inverse(evals: &[u64], modulus: u64, omega: u64) -> Result<Vec<u64>, 
     // Divide by n (normalization)
     let n_inv = mod_inverse(n as u64, modulus)?;
     for c in coeffs.iter_mut() {
-        *c = ((*c as u128 * n_inv as u128) % modulus as u128) as u64;
+        *c = mul_mod(*c, n_inv, modulus);
     }
 
     Ok(coeffs)
@@ -386,7 +337,7 @@ mod tests {
             let omega = compute_root_of_unity(n, Q, OMEGA_32);
 
             // Random coefficients
-            let coeffs: Vec<u64> = (0..n).map(|i| ((i as u64) * 123456789) % Q).collect();
+            let coeffs: Vec<u64> = (0..n).map(|i| mul_mod(i as u64, 123456789, Q)).collect();
 
             let evals = ntt_forward(&coeffs, Q, omega);
             let recovered = ntt_inverse(&evals, Q, omega).unwrap();
@@ -407,8 +358,9 @@ mod tests {
         // Compute a·f + b·g
         let mut linear_combo = vec![0u64; 4];
         for i in 0..4 {
-            linear_combo[i] =
-                ((a as u128 * f[i] as u128 + b as u128 * g[i] as u128) % Q as u128) as u64;
+            let af = mul_mod(a, f[i], Q);
+            let bg = mul_mod(b, g[i], Q);
+            linear_combo[i] = add_mod(af, bg, Q);
         }
 
         // NTT(a·f + b·g)
@@ -419,8 +371,9 @@ mod tests {
         let ntt_g = ntt_forward(&g, Q, omega);
         let mut expected = vec![0u64; 4];
         for i in 0..4 {
-            expected[i] =
-                ((a as u128 * ntt_f[i] as u128 + b as u128 * ntt_g[i] as u128) % Q as u128) as u64;
+            let af = mul_mod(a, ntt_f[i], Q);
+            let bg = mul_mod(b, ntt_g[i], Q);
+            expected[i] = add_mod(af, bg, Q);
         }
 
         assert_eq!(ntt_combo, expected, "NTT linearity violated");

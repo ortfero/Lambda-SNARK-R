@@ -1,5 +1,8 @@
 //! LWE commitment wrapper.
 
+use crate::arith::add_mod;
+#[cfg(test)]
+use crate::arith::mul_mod;
 use crate::{CoreError, Error, LweContext};
 use lambda_snark_core::Field;
 use lambda_snark_sys as ffi;
@@ -26,7 +29,11 @@ impl Clone for Commitment {
 impl Commitment {
     /// Commit to a message vector.
     pub fn new(ctx: &LweContext, message: &[Field], seed: u64) -> Result<Self, Error> {
-        let msg_u64: Vec<u64> = message.iter().map(|f| f.value()).collect();
+        let modulus = ctx.modulus();
+        let msg_u64: Vec<u64> = message
+            .iter()
+            .map(|f| add_mod(f.value() % modulus, 0, modulus))
+            .collect();
 
         let inner = unsafe { ffi::lwe_commit(ctx.as_ptr(), msg_u64.as_ptr(), msg_u64.len(), seed) };
 
@@ -48,14 +55,18 @@ impl Commitment {
         }
 
         if commitments.len() != coeffs.len() {
-            return Err(Error::InvalidInput("commitments/coeffs length mismatch".into()));
+            return Err(Error::InvalidInput(
+                "commitments/coeffs length mismatch".into(),
+            ));
         }
 
-        let mut ptrs: Vec<*const ffi::LweCommitment> = commitments
+        let mut ptrs: Vec<*const ffi::LweCommitment> =
+            commitments.iter().map(|c| c.as_ffi_ptr()).collect();
+        let modulus = ctx.modulus();
+        let coeff_words: Vec<u64> = coeffs
             .iter()
-            .map(|c| c.as_ffi_ptr())
+            .map(|f| add_mod(f.value() % modulus, 0, modulus))
             .collect();
-        let coeff_words: Vec<u64> = coeffs.iter().map(|f| f.value()).collect();
 
         let combined = unsafe {
             ffi::lwe_linear_combine(
@@ -163,7 +174,9 @@ mod tests {
         let ctx = LweContext::new(params).unwrap();
         let msg_len = 4;
         let msg1: Vec<Field> = (0..msg_len).map(|i| Field::new(i as u64 + 1)).collect();
-        let msg2: Vec<Field> = (0..msg_len).map(|i| Field::new((i as u64 + 1) * 2)).collect();
+        let msg2: Vec<Field> = (0..msg_len)
+            .map(|i| Field::new((i as u64 + 1) * 2))
+            .collect();
 
         let comm1 = Commitment::new(&ctx, &msg1, 0).unwrap();
         let comm2 = Commitment::new(&ctx, &msg2, 1).unwrap();
@@ -173,10 +186,15 @@ mod tests {
 
         let combined = Commitment::linear_combine(&ctx, &inputs, &coeffs).unwrap();
 
+        let modulus = ctx.modulus();
         let expected: Vec<u64> = msg1
             .iter()
             .zip(msg2.iter())
-            .map(|(a, b)| 2 * a.value() + 3 * b.value())
+            .map(|(a, b)| {
+                let term1 = mul_mod(coeffs[0].value(), a.value(), modulus);
+                let term2 = mul_mod(coeffs[1].value(), b.value(), modulus);
+                add_mod(term1, term2, modulus)
+            })
             .collect();
 
         let opening = ffi::LweOpening {
@@ -194,6 +212,9 @@ mod tests {
             )
         };
 
-        assert_eq!(valid, 1, "homomorphic combination should match expected message");
+        assert_eq!(
+            valid, 1,
+            "homomorphic combination should match expected message"
+        );
     }
 }

@@ -29,7 +29,10 @@ fn main() {
         .join("vcpkg.cmake");
     if toolchain.exists() {
         config
-            .define("CMAKE_TOOLCHAIN_FILE", toolchain.to_string_lossy().to_string())
+            .define(
+                "CMAKE_TOOLCHAIN_FILE",
+                toolchain.to_string_lossy().to_string(),
+            )
             .define("VCPKG_TARGET_TRIPLET", "x64-linux")
             .define("VCPKG_FEATURE_FLAGS", "manifests")
             .env("VCPKG_ROOT", &vcpkg_root);
@@ -49,7 +52,11 @@ fn main() {
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
     println!("cargo:rustc-link-search=native={}/lib64", dst.display());
 
-    let cmake_vcpkg = dst.join("build").join("vcpkg_installed").join("x64-linux").join("lib");
+    let cmake_vcpkg = dst
+        .join("build")
+        .join("vcpkg_installed")
+        .join("x64-linux")
+        .join("lib");
     if cmake_vcpkg.exists() {
         println!("cargo:rustc-link-search=native={}", cmake_vcpkg.display());
     }
@@ -61,7 +68,10 @@ fn main() {
         println!("cargo:rustc-link-lib=static=seal-4.1");
         println!("cargo:rustc-link-lib=static=zstd");
     } else {
-        eprintln!("Warning: vcpkg SEAL library not found at {}, using system libraries only", vcpkg_lib.display());
+        eprintln!(
+            "Warning: vcpkg SEAL library not found at {}, using system libraries only",
+            vcpkg_lib.display()
+        );
     }
     println!("cargo:rustc-link-lib=dylib=z"); // system zlib
     println!("cargo:rustc-link-lib=dylib=ntl"); // system NTL
@@ -78,7 +88,7 @@ fn main() {
     } else if target.contains("linux") || target.contains("bsd") {
         println!("cargo:rustc-link-lib=stdc++");
     }
-    
+
     // Generate Rust bindings
     let bindings = bindgen::Builder::default()
         .header("../../cpp-core/include/lambda_snark/types.h")
@@ -106,7 +116,7 @@ fn main() {
         .allowlist_type("LambdaSnarkError")
         .generate()
         .expect("Unable to generate bindings");
-    
+
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))

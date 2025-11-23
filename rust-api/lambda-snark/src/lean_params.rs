@@ -23,6 +23,7 @@
 //! - M10.3: Import Lean params → Rust validation
 //! - Target: April 2026
 
+use crate::arith::{mod_pow, mul_mod};
 use crate::Error;
 
 /// Security parameters (matches Lean definition).
@@ -207,7 +208,7 @@ fn is_prime(n: u64) -> bool {
         }
 
         for _ in 0..r - 1 {
-            x = mod_mul(x, x, n);
+            x = mul_mod(x, x, n);
             if x == n - 1 {
                 continue 'witness;
             }
@@ -217,27 +218,6 @@ fn is_prime(n: u64) -> bool {
     }
 
     true // Probably prime
-}
-
-/// Modular exponentiation: (base^exp) mod m
-fn mod_pow(mut base: u64, mut exp: u64, m: u64) -> u64 {
-    let mut result = 1u64;
-    base %= m;
-
-    while exp > 0 {
-        if exp % 2 == 1 {
-            result = mod_mul(result, base, m);
-        }
-        base = mod_mul(base, base, m);
-        exp /= 2;
-    }
-
-    result
-}
-
-/// Modular multiplication: (a * b) mod m (avoiding overflow)
-fn mod_mul(a: u64, b: u64, m: u64) -> u64 {
-    ((a as u128 * b as u128) % m as u128) as u64
 }
 
 #[cfg(test)]

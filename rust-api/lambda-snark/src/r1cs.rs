@@ -30,6 +30,9 @@
 //! assert!(r1cs.is_satisfied(&witness));
 //! ```
 
+use crate::arith::{
+    add_mod, mod_inverse as arith_mod_inverse, mod_pow as arith_mod_pow, mul_mod, sub_mod,
+};
 use crate::sparse_matrix::SparseMatrix;
 use crate::Error;
 
@@ -361,9 +364,9 @@ impl R1CS {
         let mut power = 1u64;
 
         for &coeff in poly {
-            let term = ((coeff as u128 * power as u128) % self.modulus as u128) as u64;
-            result = ((result as u128 + term as u128) % self.modulus as u128) as u64;
-            power = ((power as u128 * x as u128) % self.modulus as u128) as u64;
+            let term = mul_mod(coeff, power, self.modulus);
+            result = add_mod(result, term, self.modulus);
+            power = mul_mod(power, x, self.modulus);
         }
 
         result
@@ -422,22 +425,15 @@ impl R1CS {
         if self.should_use_ntt() {
             // NTT path: Z_H(X) = X^m - 1
             // Compute x^m mod modulus
-            let x_pow_m = mod_pow(x, self.m as u64, self.modulus);
-            if x_pow_m >= 1 {
-                x_pow_m - 1
-            } else {
-                self.modulus - (1 - x_pow_m)
-            }
+            let x_pow_m = arith_mod_pow(x, self.m as u64, self.modulus);
+            sub_mod(x_pow_m, 1, self.modulus)
         } else {
             // Baseline path: Z_H(X) = ∏(X - i) for i=0..m-1
             let mut result = 1u64;
             for i in 0..self.m {
-                let diff = if x >= (i as u64) {
-                    x - (i as u64)
-                } else {
-                    self.modulus - ((i as u64) - x)
-                };
-                result = ((result as u128 * diff as u128) % self.modulus as u128) as u64;
+                let base = (i as u64) % self.modulus;
+                let diff = sub_mod(x, base, self.modulus);
+                result = mul_mod(result, diff, self.modulus);
             }
             result
         }
@@ -514,53 +510,18 @@ impl R1CS {
 /// Modular exponentiation: base^exp mod modulus
 ///
 /// Uses binary exponentiation for O(log exp) performance.
+#[allow(dead_code)]
 fn mod_pow(base: u64, exp: u64, modulus: u64) -> u64 {
-    if modulus == 1 {
-        return 0;
-    }
-
-    let mut result = 1u64;
-    let mut base = base % modulus;
-    let mut exp = exp;
-
-    while exp > 0 {
-        if exp & 1 == 1 {
-            result = ((result as u128 * base as u128) % modulus as u128) as u64;
-        }
-        base = ((base as u128 * base as u128) % modulus as u128) as u64;
-        exp >>= 1;
-    }
-
-    result
+    arith_mod_pow(base, exp, modulus)
 }
 
 /// Modular multiplicative inverse using Extended Euclidean Algorithm
 ///
 /// Returns x such that (a * x) ≡ 1 (mod m)
 /// Panics if a and m are not coprime.
-fn mod_inverse(a: u64, m: u64) -> u64 {
-    if a == 0 {
-        panic!("Cannot compute inverse of 0");
-    }
-
-    let (mut t, mut new_t) = (0i128, 1i128);
-    let (mut r, mut new_r) = (m as i128, a as i128);
-
-    while new_r != 0 {
-        let quotient = r / new_r;
-        (t, new_t) = (new_t, t - quotient * new_t);
-        (r, new_r) = (new_r, r - quotient * new_r);
-    }
-
-    if r > 1 {
-        panic!("a={} is not invertible mod m={}", a, m);
-    }
-
-    if t < 0 {
-        t += m as i128;
-    }
-
-    t as u64
+fn mod_inverse(a: u64, modulus: u64) -> u64 {
+    arith_mod_inverse(a, modulus)
+        .unwrap_or_else(|| panic!("a={} is not invertible mod m={}", a, modulus))
 }
 
 /// NTT-friendly prime modulus (supports up to 2^13 = 8192 NTT)
@@ -655,8 +616,8 @@ fn lagrange_basis_ntt(i: usize, m: usize, omega: u64, modulus: u64) -> Vec<u64> 
     // Compute domain points
     let mut omega_powers = vec![1u64];
     for _ in 1..m {
-        let prev = omega_powers.last().unwrap();
-        omega_powers.push(((*prev as u128 * omega as u128) % modulus as u128) as u64);
+        let prev = *omega_powers.last().unwrap();
+        omega_powers.push(mul_mod(prev, omega, modulus));
     }
 
     // Multiply by (X - ω^j) for all j ≠ i
@@ -677,19 +638,14 @@ fn lagrange_basis_ntt(i: usize, m: usize, omega: u64, modulus: u64) -> Vec<u64> 
         }
 
         let omega_j = omega_powers[j];
-        let diff = if omega_i >= omega_j {
-            (omega_i - omega_j) % modulus
-        } else {
-            modulus - ((omega_j - omega_i) % modulus)
-        };
-
-        denom = ((denom as u128 * diff as u128) % modulus as u128) as u64;
+        let diff = sub_mod(omega_i, omega_j, modulus);
+        denom = mul_mod(denom, diff, modulus);
     }
 
     // Divide all coefficients by denominator
     let denom_inv = mod_inverse(denom, modulus);
     for coeff in poly.iter_mut() {
-        *coeff = ((*coeff as u128 * denom_inv as u128) % modulus as u128) as u64;
+        *coeff = mul_mod(*coeff, denom_inv, modulus);
     }
 
     poly.resize(m, 0);
@@ -720,26 +676,17 @@ fn lagrange_basis_sequential(i: usize, m: usize, modulus: u64) -> Vec<u64> {
             continue;
         }
 
-        let diff = if i >= j {
-            ((i - j) as u64) % modulus
-        } else {
-            // i < j, so (i - j) is negative
-            // In modular arithmetic: -x ≡ q - x (mod q)
-            let abs_diff = ((j - i) as u64) % modulus;
-            if abs_diff == 0 {
-                0
-            } else {
-                modulus - abs_diff
-            }
-        };
+        let i_mod = (i as u64) % modulus;
+        let j_mod = (j as u64) % modulus;
+        let diff = sub_mod(i_mod, j_mod, modulus);
 
-        denom = ((denom as u128 * diff as u128) % modulus as u128) as u64;
+        denom = mul_mod(denom, diff, modulus);
     }
 
     // Divide all coefficients by denominator
     let denom_inv = mod_inverse(denom, modulus);
     for coeff in poly.iter_mut() {
-        *coeff = ((*coeff as u128 * denom_inv as u128) % modulus as u128) as u64;
+        *coeff = mul_mod(*coeff, denom_inv, modulus);
     }
 
     // Pad to degree m-1
@@ -769,15 +716,11 @@ fn poly_mul_linear(poly: &[u64], a: u64, modulus: u64) -> Vec<u64> {
         // But for i=0: just -a * poly[0]
 
         // Add poly[i] to result[i+1] (shift left by X)
-        result[i + 1] = ((result[i + 1] as u128 + poly[i] as u128) % modulus as u128) as u64;
+        result[i + 1] = add_mod(result[i + 1], poly[i], modulus);
 
         // Subtract a * poly[i] from result[i]
-        let term = ((a as u128 * poly[i] as u128) % modulus as u128) as u64;
-        if result[i] >= term {
-            result[i] = result[i] - term;
-        } else {
-            result[i] = modulus - (term - result[i]);
-        }
+        let term = mul_mod(a, poly[i], modulus);
+        result[i] = sub_mod(result[i], term, modulus);
     }
 
     result
@@ -876,8 +819,8 @@ fn lagrange_interpolate_baseline(evals: &[u64], modulus: u64) -> Vec<u64> {
 
         // Add evals[i] * L_i(X) to result
         for j in 0..m {
-            let term = ((evals[i] as u128 * basis[j] as u128) % modulus as u128) as u64;
-            result[j] = ((result[j] as u128 + term as u128) % modulus as u128) as u64;
+            let term = mul_mod(evals[i], basis[j], modulus);
+            result[j] = add_mod(result[j], term, modulus);
         }
     }
 
@@ -911,8 +854,8 @@ fn poly_mul(a: &[u64], b: &[u64], modulus: u64) -> Vec<u64> {
 
     for i in 0..a.len() {
         for j in 0..b.len() {
-            let term = ((a[i] as u128 * b[j] as u128) % modulus as u128) as u64;
-            result[i + j] = ((result[i + j] as u128 + term as u128) % modulus as u128) as u64;
+            let term = mul_mod(a[i] % modulus, b[j] % modulus, modulus);
+            result[i + j] = add_mod(result[i + j], term, modulus);
         }
     }
 
@@ -938,11 +881,7 @@ fn poly_sub(a: &[u64], b: &[u64], modulus: u64) -> Vec<u64> {
         let a_val = if i < a.len() { a[i] } else { 0 };
         let b_val = if i < b.len() { b[i] } else { 0 };
 
-        if a_val >= b_val {
-            result[i] = a_val - b_val;
-        } else {
-            result[i] = modulus - (b_val - a_val);
-        }
+        result[i] = sub_mod(a_val % modulus, b_val % modulus, modulus);
     }
 
     // Remove leading zeros
@@ -972,7 +911,7 @@ pub fn poly_add(a: &[u64], b: &[u64], modulus: u64) -> Vec<u64> {
         let a_val = if i < a.len() { a[i] } else { 0 };
         let b_val = if i < b.len() { b[i] } else { 0 };
 
-        result[i] = ((a_val as u128 + b_val as u128) % modulus as u128) as u64;
+        result[i] = add_mod(a_val % modulus, b_val % modulus, modulus);
     }
 
     // Remove leading zeros
@@ -996,7 +935,7 @@ pub fn poly_add(a: &[u64], b: &[u64], modulus: u64) -> Vec<u64> {
 /// Coefficients of product r · p(X)
 pub fn poly_mul_scalar(poly: &[u64], scalar: u64, modulus: u64) -> Vec<u64> {
     poly.iter()
-        .map(|&coeff| ((coeff as u128 * scalar as u128) % modulus as u128) as u64)
+        .map(|&coeff| mul_mod(coeff % modulus, scalar % modulus, modulus))
         .collect()
 }
 
@@ -1095,20 +1034,15 @@ fn poly_div_vanishing(
             let lead_div_inv = mod_inverse(lead_div, modulus);
 
             // Quotient coefficient
-            let q_coeff =
-                ((remainder[idx] as u128 * lead_div_inv as u128) % modulus as u128) as u64;
+            let q_coeff = mul_mod(remainder[idx] % modulus, lead_div_inv, modulus);
             quotient[i] = q_coeff;
 
             // Subtract q_coeff * divisor from remainder
             for j in 0..divisor.len() {
-                let term = ((q_coeff as u128 * divisor[j] as u128) % modulus as u128) as u64;
+                let term = mul_mod(q_coeff, divisor[j] % modulus, modulus);
                 let pos = i + j;
                 if pos < remainder.len() {
-                    if remainder[pos] >= term {
-                        remainder[pos] -= term;
-                    } else {
-                        remainder[pos] = modulus - (term - remainder[pos]);
-                    }
+                    remainder[pos] = sub_mod(remainder[pos], term, modulus);
                 }
             }
         }
@@ -1413,8 +1347,8 @@ mod tests {
         let mut q_alpha = 0u64;
         for (i, &coeff) in q_coeffs.iter().enumerate() {
             let power = super::mod_pow(alpha, i as u64, modulus);
-            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
-            q_alpha = ((q_alpha as u128 + term as u128) % modulus as u128) as u64;
+            let term = mul_mod(coeff % modulus, power, modulus);
+            q_alpha = add_mod(q_alpha, term, modulus);
         }
 
         // Evaluate A_z(α), B_z(α), C_z(α)
@@ -1424,20 +1358,20 @@ mod tests {
 
         for (i, &coeff) in a_poly.iter().enumerate() {
             let power = super::mod_pow(alpha, i as u64, modulus);
-            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
-            a_alpha = ((a_alpha as u128 + term as u128) % modulus as u128) as u64;
+            let term = mul_mod(coeff % modulus, power, modulus);
+            a_alpha = add_mod(a_alpha, term, modulus);
         }
 
         for (i, &coeff) in b_poly.iter().enumerate() {
             let power = super::mod_pow(alpha, i as u64, modulus);
-            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
-            b_alpha = ((b_alpha as u128 + term as u128) % modulus as u128) as u64;
+            let term = mul_mod(coeff % modulus, power, modulus);
+            b_alpha = add_mod(b_alpha, term, modulus);
         }
 
         for (i, &coeff) in c_poly.iter().enumerate() {
             let power = super::mod_pow(alpha, i as u64, modulus);
-            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
-            c_alpha = ((c_alpha as u128 + term as u128) % modulus as u128) as u64;
+            let term = mul_mod(coeff % modulus, power, modulus);
+            c_alpha = add_mod(c_alpha, term, modulus);
         }
 
         // Evaluate Z_H(α) = α(α-1)(α-2)...(α-(m-1)) [integer domain]
@@ -1446,14 +1380,14 @@ mod tests {
         let mut z_h_alpha = 0u64;
         for (i, &coeff) in z_h_poly.iter().enumerate() {
             let power = super::mod_pow(alpha, i as u64, modulus);
-            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
-            z_h_alpha = ((z_h_alpha as u128 + term as u128) % modulus as u128) as u64;
+            let term = mul_mod(coeff % modulus, power, modulus);
+            z_h_alpha = add_mod(z_h_alpha, term, modulus);
         }
 
         // Check: Q(α) * Z_H(α) = A_z(α) * B_z(α) - C_z(α)
-        let lhs = ((q_alpha as u128 * z_h_alpha as u128) % modulus as u128) as u64;
+        let lhs = mul_mod(q_alpha, z_h_alpha, modulus);
 
-        let ab_product = ((a_alpha as u128 * b_alpha as u128) % modulus as u128) as u64;
+        let ab_product = mul_mod(a_alpha, b_alpha, modulus);
         let rhs = if ab_product >= c_alpha {
             ab_product - c_alpha
         } else {
@@ -1491,8 +1425,8 @@ mod tests {
             let mut result = 0u64;
             for (i, &coeff) in poly.iter().enumerate() {
                 let power = super::mod_pow(alpha, i as u64, modulus);
-                let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
-                result = ((result as u128 + term as u128) % modulus as u128) as u64;
+                let term = mul_mod(coeff % modulus, power, modulus);
+                result = add_mod(result, term, modulus);
             }
             result
         };
@@ -1508,8 +1442,8 @@ mod tests {
         let z_h_alpha = eval_poly(&z_h_poly);
 
         // Verify Q(α) * Z_H(α) = A_z(α) * B_z(α) - C_z(α)
-        let lhs = ((q_alpha as u128 * z_h_alpha as u128) % modulus as u128) as u64;
-        let ab = ((a_alpha as u128 * b_alpha as u128) % modulus as u128) as u64;
+        let lhs = mul_mod(q_alpha, z_h_alpha, modulus);
+        let ab = mul_mod(a_alpha, b_alpha, modulus);
         let rhs = if ab >= c_alpha {
             ab - c_alpha
         } else {
@@ -1547,15 +1481,15 @@ mod tests {
 
         // 2 * inv(2) ≡ 1 (mod q)
         let inv2 = super::mod_inverse(2, modulus);
-        assert_eq!((2u128 * inv2 as u128) % modulus as u128, 1);
+        assert_eq!(mul_mod(2, inv2, modulus), 1);
 
         // 7 * inv(7) ≡ 1 (mod q)
         let inv7 = super::mod_inverse(7, modulus);
-        assert_eq!((7u128 * inv7 as u128) % modulus as u128, 1);
+        assert_eq!(mul_mod(7, inv7, modulus), 1);
 
         // 13 * inv(13) ≡ 1 (mod q)
         let inv13 = super::mod_inverse(13, modulus);
-        assert_eq!((13u128 * inv13 as u128) % modulus as u128, 1);
+        assert_eq!(mul_mod(13, inv13, modulus), 1);
     }
 
     #[test]
@@ -1609,8 +1543,8 @@ mod tests {
                 let mut val = 0u64;
                 for (k, &coeff) in li.iter().enumerate() {
                     let power = super::mod_pow(j as u64, k as u64, modulus);
-                    let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
-                    val = ((val as u128 + term as u128) % modulus as u128) as u64;
+                    let term = mul_mod(coeff % modulus, power, modulus);
+                    val = add_mod(val, term, modulus);
                 }
 
                 if i == j {
@@ -1821,13 +1755,15 @@ mod tests {
         };
 
         // Q(α) * Z_H(α)
-        let lhs = ((q_alpha as u128 * zh_alpha as u128) % r1cs.modulus as u128) as u64;
+        let lhs = mul_mod(q_alpha, zh_alpha, r1cs.modulus);
 
         // A_z(α) * B_z(α) - C_z(α)
         let ab_alpha = eval_poly(&ab_poly, alpha, r1cs.modulus);
-        let ab_alpha_expected =
-            ((a_alpha as u128 * b_alpha as u128) % r1cs.modulus as u128) as u64;
-        assert_eq!(ab_alpha, ab_alpha_expected, "A_z·B_z evaluation must match direct product");
+        let ab_alpha_expected = mul_mod(a_alpha, b_alpha, r1cs.modulus);
+        assert_eq!(
+            ab_alpha, ab_alpha_expected,
+            "A_z·B_z evaluation must match direct product"
+        );
         let rhs = if ab_alpha >= c_alpha {
             ab_alpha - c_alpha
         } else {
@@ -1846,9 +1782,9 @@ mod tests {
         let mut power = 1u64;
 
         for &coeff in poly {
-            let term = ((coeff as u128 * power as u128) % modulus as u128) as u64;
-            result = ((result as u128 + term as u128) % modulus as u128) as u64;
-            power = ((power as u128 * x as u128) % modulus as u128) as u64;
+            let term = mul_mod(coeff % modulus, power, modulus);
+            result = add_mod(result, term, modulus);
+            power = mul_mod(power, x % modulus, modulus);
         }
 
         result

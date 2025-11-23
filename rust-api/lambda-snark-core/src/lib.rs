@@ -55,7 +55,7 @@ pub mod r1cs;
 ///
 /// - [`LEGACY_MODULUS`]: Original 44-bit modulus (NOT NTT-friendly)
 /// - [`NTT_PRIMITIVE_ROOT`]: Primitive 2^32-th root of unity for this modulus
-pub const NTT_MODULUS: u64 = 18_446_744_069_414_584_321;  // 2^64 - 2^32 + 1
+pub const NTT_MODULUS: u64 = 18_446_744_069_414_584_321; // 2^64 - 2^32 + 1
 
 /// Primitive 2^32-th root of unity modulo [`NTT_MODULUS`].
 ///
@@ -75,7 +75,7 @@ pub const NTT_MODULUS: u64 = 18_446_744_069_414_584_321;  // 2^64 - 2^32 + 1
 /// // Cooley-Tukey NTT uses powers of ω as twiddle factors
 /// let omega_k = mod_pow(NTT_PRIMITIVE_ROOT, k, NTT_MODULUS);
 /// ```
-pub const NTT_PRIMITIVE_ROOT: u64 = 1_753_635_133_440_165_772;  // ω for 2^32-point NTT
+pub const NTT_PRIMITIVE_ROOT: u64 = 1_753_635_133_440_165_772; // ω for 2^32-point NTT
 
 /// Legacy modulus (44-bit, NOT NTT-friendly).
 ///
@@ -104,7 +104,7 @@ impl Field {
     pub const fn new(value: u64) -> Self {
         Field(value)
     }
-    
+
     /// Get the raw value.
     #[inline]
     pub const fn value(self) -> u64 {
@@ -164,7 +164,7 @@ impl Params {
             profile,
         }
     }
-    
+
     /// Validate parameters for correctness.
     pub fn validate(&self) -> Result<(), Error> {
         match &self.profile {
@@ -206,7 +206,7 @@ impl Witness {
     pub fn new(data: Vec<Field>) -> Self {
         Self { data }
     }
-    
+
     /// Get witness data.
     pub fn as_slice(&self) -> &[Field] {
         &self.data
@@ -256,7 +256,7 @@ impl std::error::Error for Error {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     /// Helper: Modular exponentiation (a^b mod m)
     fn mod_pow(mut base: u64, mut exp: u64, modulus: u64) -> u64 {
         if modulus == 1 {
@@ -265,7 +265,7 @@ mod tests {
         let mut result = 1u128;
         let mut b = base as u128;
         let m = modulus as u128;
-        
+
         while exp > 0 {
             if exp % 2 == 1 {
                 result = (result * b) % m;
@@ -275,13 +275,13 @@ mod tests {
         }
         result as u64
     }
-    
+
     #[test]
     fn test_field_element() {
         let f = Field::new(42);
         assert_eq!(f.value(), 42);
     }
-    
+
     #[test]
     fn test_params_validation() {
         let params = Params::new(
@@ -289,12 +289,12 @@ mod tests {
             Profile::RingB {
                 n: 256,
                 k: 2,
-                q: 17592186044417,  // Must be > 2^24
+                q: 17592186044417, // Must be > 2^24
                 sigma: 3.19,
             },
         );
         assert!(params.validate().is_ok());
-        
+
         // Invalid: sigma too small
         let bad_params = Params::new(
             SecurityLevel::Bits128,
@@ -307,60 +307,68 @@ mod tests {
         );
         assert_eq!(bad_params.validate(), Err(Error::InvalidSigma));
     }
-    
+
     // ========================================================================
     // M5.1.2: NTT Modulus Tests
     // ========================================================================
-    
+
     #[test]
     fn test_ntt_modulus_properties() {
         const Q: u64 = NTT_MODULUS;
-        
+
         // Test 1: q = 2^64 - 2^32 + 1
         let expected = (1u128 << 64) - (1u128 << 32) + 1;
         assert_eq!(Q as u128, expected, "NTT_MODULUS != 2^64 - 2^32 + 1");
-        
+
         // Test 2: q-1 = 2^32 · (2^32 - 1)
         let q_minus_1 = Q - 1;
         assert_eq!(q_minus_1 % (1u64 << 32), 0, "q-1 not divisible by 2^32");
-        
+
         let k = q_minus_1 / (1u64 << 32);
         assert_eq!(k, (1u64 << 32) - 1, "q-1 / 2^32 != 2^32 - 1");
     }
-    
+
     #[test]
     fn test_primitive_root_of_unity() {
         const Q: u64 = NTT_MODULUS;
         const OMEGA: u64 = NTT_PRIMITIVE_ROOT;
-        const N: u64 = 1u64 << 32;  // 2^32
-        
+        const N: u64 = 1u64 << 32; // 2^32
+
         // Test 1: ω^(2^31) ≡ -1 ≡ q-1 (mod q) (primitivity)
         let omega_half = mod_pow(OMEGA, N / 2, Q);
-        assert_eq!(omega_half, Q - 1, "ω^(2^31) must equal -1 (mod q) for primitivity");
-        
+        assert_eq!(
+            omega_half,
+            Q - 1,
+            "ω^(2^31) must equal -1 (mod q) for primitivity"
+        );
+
         // Test 2: ω ≠ 1 (sanity check)
         assert_ne!(OMEGA, 1, "ω cannot be 1 (trivial root)");
         assert!(OMEGA < Q, "ω must be < q");
     }
-    
+
     #[test]
     fn test_ntt_root_hierarchy() {
         const Q: u64 = NTT_MODULUS;
         const OMEGA: u64 = NTT_PRIMITIVE_ROOT;
-        
+
         // ω is primitive 2^32-th root
         // ω^2 is primitive 2^31-th root
         // ω^4 is primitive 2^30-th root
         // ... and so on
-        
+
         for k in 1..10 {
-            let n_k = 1u64 << k;  // 2^k
+            let n_k = 1u64 << k; // 2^k
             let omega_k = mod_pow(OMEGA, (1u64 << 32) / n_k, Q);
-            
+
             // Check: omega_k^(2^k) ≡ 1 (mod q)
             let test = mod_pow(omega_k, n_k, Q);
-            assert_eq!(test, 1, "ω^(2^32 / 2^{}) must be primitive 2^{}-th root", k, k);
-            
+            assert_eq!(
+                test, 1,
+                "ω^(2^32 / 2^{}) must be primitive 2^{}-th root",
+                k, k
+            );
+
             // Check primitivity: omega_k^(2^(k-1)) ≡ -1 (mod q)
             if k > 1 {
                 let test_half = mod_pow(omega_k, n_k / 2, Q);
@@ -368,14 +376,24 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_legacy_vs_ntt_modulus() {
         // NTT modulus should be larger (better security)
-        assert!(NTT_MODULUS > LEGACY_MODULUS, "NTT modulus should be larger than legacy");
-        
+        assert!(
+            NTT_MODULUS > LEGACY_MODULUS,
+            "NTT modulus should be larger than legacy"
+        );
+
         // NTT modulus is 64-bit, legacy is 45-bit
-        assert_eq!(NTT_MODULUS.leading_zeros(), 0, "NTT modulus should use full 64 bits");
-        assert!(LEGACY_MODULUS.leading_zeros() >= 19, "Legacy modulus is ~45 bits (19 leading zeros)");
+        assert_eq!(
+            NTT_MODULUS.leading_zeros(),
+            0,
+            "NTT modulus should use full 64 bits"
+        );
+        assert!(
+            LEGACY_MODULUS.leading_zeros() >= 19,
+            "Legacy modulus is ~45 bits (19 leading zeros)"
+        );
     }
 }

@@ -76,8 +76,7 @@ fn load_test_vector(
 
     let profile_label = params_json.profile.profile_type.as_str();
     assert!(
-        profile_label.eq_ignore_ascii_case("ringb")
-            || profile_label.eq_ignore_ascii_case("ring-b"),
+        profile_label.eq_ignore_ascii_case("ringb") || profile_label.eq_ignore_ascii_case("ring-b"),
         "Unsupported profile type: {}",
         profile_label
     );

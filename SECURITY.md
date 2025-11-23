@@ -80,6 +80,7 @@ Trusted components: Module-LWE hardness, SHAKE256 in the Random Oracle Model, an
 - Internal security review (M7.3) completed 2025-11-15: resolved composite modulus bug, documented timing and FFI gaps.
  - Dudect timing sweep for Gaussian sampler (20k traces) recorded 2025-11-23; report archived at `artifacts/dudect/gaussian_sampler_report.md`.
  - Dudect timing sweep for modular arithmetic (20k traces) recorded 2025-11-23; report archived at `artifacts/dudect/mod_arith_report.md` (|t_add_mod| ≈ 0.91, |t_sub_mod| ≈ 0.33, |t_mod_pow| ≈ 0.40, |t_mod_inverse| ≈ 0.12).
+ - Extended dudect harness now benchmarks polynomial evaluation and sparse matrix multiplication pathways alongside modular helpers; results captured in the same report file.
 - Latest `cargo audit` run: 2025-11-23, zero advisories, 162 crates checked.
 - Lean build (`lake build LambdaSNARK`) passes as of 2025-11-23; soundness proof landed, ZK proof ongoing.
 

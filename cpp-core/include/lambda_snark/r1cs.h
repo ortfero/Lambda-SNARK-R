@@ -64,6 +64,7 @@ typedef struct {
     SparseMatrix B;  ///< Right multiplication matrix
     SparseMatrix C;  ///< Output constraint matrix
     uint32_t n_vars; ///< Number of variables (n)
+    uint32_t n_public_inputs; ///< Number of public inputs (l)
     uint32_t n_constraints; ///< Number of constraints (m)
 } R1CSConstraintSystem;
 

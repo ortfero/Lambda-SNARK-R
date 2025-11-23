@@ -164,7 +164,12 @@ impl R1CS {
     ///
     /// # Errors
     /// Returns `Error::InvalidParams` if dimensions mismatch.
-    pub fn new(a: SparseMatrix, b: SparseMatrix, c: SparseMatrix, modulus: u64) -> Result<Self, Error> {
+    pub fn new(
+        a: SparseMatrix,
+        b: SparseMatrix,
+        c: SparseMatrix,
+        modulus: u64,
+    ) -> Result<Self, Error> {
         let mut handle: *mut std::ffi::c_void = ptr::null_mut();
 
         let err = unsafe {
@@ -207,9 +212,7 @@ impl R1CS {
 
         let mut valid = false;
 
-        let err = unsafe {
-            lambda_snark_r1cs_validate_witness(self.handle, &w, &mut valid)
-        };
+        let err = unsafe { lambda_snark_r1cs_validate_witness(self.handle, &w, &mut valid) };
 
         match err {
             0 => Ok(valid),

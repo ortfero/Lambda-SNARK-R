@@ -59,6 +59,8 @@
 pub use lambda_snark_core::Error as CoreError;
 pub use lambda_snark_core::{Field, Params, Profile, SecurityLevel, Witness};
 
+#[doc(hidden)]
+pub mod arith;
 mod challenge;
 pub mod circuit;
 mod commitment;
@@ -76,6 +78,8 @@ pub use circuit::CircuitBuilder;
 pub use commitment::Commitment;
 pub use context::LweContext;
 pub use lean_export::{LeanExportable, VerificationKey};
+
+use crate::arith::{mul_mod, sub_mod};
 pub use lean_params::{validate_params, SecurityParams};
 pub use opening::{generate_opening, verify_opening, verify_opening_with_context, Opening};
 pub use polynomial::Polynomial;
@@ -1029,28 +1033,20 @@ pub fn verify_r1cs(proof: &ProofR1CS, public_inputs: &[u64], r1cs: &R1CS) -> boo
     let zh_beta = r1cs.eval_vanishing(beta);
 
     // 7. Verify first equation: Q(α)·Z_H(α) = A_z(α)·B_z(α) - C_z(α)
-    let lhs_alpha = ((proof.q_alpha as u128 * zh_alpha as u128) % modulus as u128) as u64;
+    let lhs_alpha = mul_mod(proof.q_alpha, zh_alpha, modulus);
 
-    let ab_alpha = ((proof.a_z_alpha as u128 * proof.b_z_alpha as u128) % modulus as u128) as u64;
-    let rhs_alpha = if ab_alpha >= proof.c_z_alpha {
-        ab_alpha - proof.c_z_alpha
-    } else {
-        modulus - (proof.c_z_alpha - ab_alpha)
-    };
+    let ab_alpha = mul_mod(proof.a_z_alpha, proof.b_z_alpha, modulus);
+    let rhs_alpha = sub_mod(ab_alpha, proof.c_z_alpha, modulus);
 
     if lhs_alpha != rhs_alpha {
         return false;
     }
 
     // 8. Verify second equation: Q(β)·Z_H(β) = A_z(β)·B_z(β) - C_z(β)
-    let lhs_beta = ((proof.q_beta as u128 * zh_beta as u128) % modulus as u128) as u64;
+    let lhs_beta = mul_mod(proof.q_beta, zh_beta, modulus);
 
-    let ab_beta = ((proof.a_z_beta as u128 * proof.b_z_beta as u128) % modulus as u128) as u64;
-    let rhs_beta = if ab_beta >= proof.c_z_beta {
-        ab_beta - proof.c_z_beta
-    } else {
-        modulus - (proof.c_z_beta - ab_beta)
-    };
+    let ab_beta = mul_mod(proof.a_z_beta, proof.b_z_beta, modulus);
+    let rhs_beta = sub_mod(ab_beta, proof.c_z_beta, modulus);
 
     if lhs_beta != rhs_beta {
         return false;
@@ -1163,44 +1159,28 @@ pub fn verify_r1cs_zk(proof: &ProofR1csZk, public_inputs: &[u64], r1cs: &R1CS) -
     let zh_beta = r1cs.eval_vanishing(beta);
 
     // 7. Unblind Q'(α) → Q(α) using r·Z_H(α)
-    let r_zh_alpha = ((proof.blinding_factor as u128 * zh_alpha as u128) % modulus as u128) as u64;
-    let q_alpha = if proof.q_prime_alpha >= r_zh_alpha {
-        proof.q_prime_alpha - r_zh_alpha
-    } else {
-        modulus - (r_zh_alpha - proof.q_prime_alpha)
-    };
+    let r_zh_alpha = mul_mod(proof.blinding_factor, zh_alpha, modulus);
+    let q_alpha = sub_mod(proof.q_prime_alpha, r_zh_alpha, modulus);
 
     // 8. Unblind Q'(β) → Q(β) using r·Z_H(β)
-    let r_zh_beta = ((proof.blinding_factor as u128 * zh_beta as u128) % modulus as u128) as u64;
-    let q_beta = if proof.q_prime_beta >= r_zh_beta {
-        proof.q_prime_beta - r_zh_beta
-    } else {
-        modulus - (r_zh_beta - proof.q_prime_beta)
-    };
+    let r_zh_beta = mul_mod(proof.blinding_factor, zh_beta, modulus);
+    let q_beta = sub_mod(proof.q_prime_beta, r_zh_beta, modulus);
 
     // 9. Verify first equation: Q(α)·Z_H(α) = A_z(α)·B_z(α) - C_z(α)
-    let lhs_alpha = ((q_alpha as u128 * zh_alpha as u128) % modulus as u128) as u64;
+    let lhs_alpha = mul_mod(q_alpha, zh_alpha, modulus);
 
-    let ab_alpha = ((proof.a_z_alpha as u128 * proof.b_z_alpha as u128) % modulus as u128) as u64;
-    let rhs_alpha = if ab_alpha >= proof.c_z_alpha {
-        ab_alpha - proof.c_z_alpha
-    } else {
-        modulus - (proof.c_z_alpha - ab_alpha)
-    };
+    let ab_alpha = mul_mod(proof.a_z_alpha, proof.b_z_alpha, modulus);
+    let rhs_alpha = sub_mod(ab_alpha, proof.c_z_alpha, modulus);
 
     if lhs_alpha != rhs_alpha {
         return false;
     }
 
     // 10. Verify second equation: Q(β)·Z_H(β) = A_z(β)·B_z(β) - C_z(β)
-    let lhs_beta = ((q_beta as u128 * zh_beta as u128) % modulus as u128) as u64;
+    let lhs_beta = mul_mod(q_beta, zh_beta, modulus);
 
-    let ab_beta = ((proof.a_z_beta as u128 * proof.b_z_beta as u128) % modulus as u128) as u64;
-    let rhs_beta = if ab_beta >= proof.c_z_beta {
-        ab_beta - proof.c_z_beta
-    } else {
-        modulus - (proof.c_z_beta - ab_beta)
-    };
+    let ab_beta = mul_mod(proof.a_z_beta, proof.b_z_beta, modulus);
+    let rhs_beta = sub_mod(ab_beta, proof.c_z_beta, modulus);
 
     if lhs_beta != rhs_beta {
         return false;
@@ -1225,11 +1205,7 @@ pub fn verify_r1cs_zk(proof: &ProofR1csZk, public_inputs: &[u64], r1cs: &R1CS) -
 /// # Errors
 ///
 /// Returns error if witness doesn't satisfy R1CS or proving fails.
-pub fn prove(
-    pk: &ProvingKey,
-    _public_input: &[Field],
-    _witness: &[Field],
-) -> Result<Proof, Error> {
+pub fn prove(pk: &ProvingKey, _public_input: &[Field], _witness: &[Field]) -> Result<Proof, Error> {
     let _ctx = pk.context();
     // TODO: Implement full R1CS prover
     Err(Error::Ffi(

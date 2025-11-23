@@ -15,6 +15,7 @@
 - Microsoft SEAL commitments exposed via safe Rust FFI and CLI workflows.
 - Lean project `formal/` with completed soundness proof and active zero-knowledge development.
 - Deterministic test vectors and a healthcare walkthrough that emit Lean artifacts.
+- Constant-time discrete Gaussian sampler and modular arithmetic dudect sweeps (`artifacts/dudect/`).
 
 ---
 
@@ -53,6 +54,17 @@ cd ../cpp-core
 cmake -S . -B build -G Ninja
 cmake --build build
 ctest --test-dir build
+
+# Dudect-style timing sanity check
+cmake --build build --target dudect_sampler
+./build/dudect_sampler  # writes artifacts/dudect/gaussian_sampler_report.md
+
+# Modular arithmetic timing sweep
+cargo run --manifest-path ../rust-api/Cargo.toml \
+  -p lambda-snark --bin mod_arith_timing
+# writes artifacts/dudect/mod_arith_report.md (add/sub/pow/inverse)
+cargo run -p lambda-snark --bin mod_arith_timing \
+  # writes artifacts/dudect/mod_arith_report.md (add/sub/pow/inverse)
 
 # Lean proofs
 cd ../formal

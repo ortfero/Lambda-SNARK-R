@@ -258,4 +258,25 @@ mod tests {
         assert!(lean_term.contains("2")); // number of vars
         assert!(lean_term.contains("SparseMatrix.mk"));
     }
+
+    #[test]
+    fn test_vk_public_input_count_roundtrip() {
+        // Witness layout: [1, x, y] with two public inputs.
+        let a = SparseMatrix::from_dense(&vec![vec![0, 1, 0]]);
+        let b = SparseMatrix::from_dense(&vec![vec![0, 0, 1]]);
+        let c = SparseMatrix::from_dense(&vec![vec![1, 0, 0]]);
+
+        let r1cs = R1CS::new(1, 3, 2, a, b, c, 12289);
+        let vk = VerificationKey::from_r1cs(&r1cs);
+
+        assert_eq!(vk.num_public_inputs, 2);
+
+        let lean_term = vk.to_lean_term();
+        let header = lean_term.lines().next().unwrap_or("");
+        assert!(
+            header.contains("⟨1, 3, 2,"),
+            "lean term header missing public input count: {}",
+            header
+        );
+    }
 }

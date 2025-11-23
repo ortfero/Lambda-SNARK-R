@@ -85,7 +85,11 @@ fn test_commitment_reproducible_structure() {
     // But structure (size) should be consistent.
     let len1 = comm1.as_bytes().len();
     let len2 = comm2.as_bytes().len();
-    let delta = if len1 > len2 { len1 - len2 } else { len2 - len1 };
+    let delta = if len1 > len2 {
+        len1 - len2
+    } else {
+        len2 - len1
+    };
 
     // SEAL serialization may vary slightly in size due to randomness alignment.
     const MAX_STRUCTURE_DELTA_WORDS: usize = 32;

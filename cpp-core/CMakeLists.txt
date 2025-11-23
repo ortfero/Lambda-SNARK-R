@@ -181,7 +181,15 @@ if(LAMBDA_SNARK_BUILD_TESTS)
     add_executable(test_conformance tests/test_conformance.cpp)
     target_link_libraries(test_conformance PRIVATE lambda_snark_core GTest::gtest_main)
     add_test(NAME test_conformance COMMAND test_conformance)
+
+    add_executable(test_utils tests/test_utils.cpp)
+    target_link_libraries(test_utils PRIVATE lambda_snark_core GTest::gtest_main)
+    add_test(NAME test_utils COMMAND test_utils)
 endif()
+
+# --- Tooling ---
+add_executable(dudect_sampler tools/dudect_sampler.cpp)
+target_link_libraries(dudect_sampler PRIVATE lambda_snark_core)
 
 # --- Benchmarks ---
 if(LAMBDA_SNARK_BUILD_BENCHMARKS)
