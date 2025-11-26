@@ -1,77 +1,77 @@
 # Lean 4 Formal Verification
 
-Эта директория содержит Lean 4-проект, подтверждающий корректность
-вероятностного форкинг-инфраструктуры ΛSNARK-R. Все основные леммы
-получены конструктивно; Lean-кernel не использует сторонних аксиом.
+This directory hosts the Lean 4 project that validates the probabilistic
+forking infrastructure of ΛSNARK-R. All principal lemmas are proved
+constructively; the Lean kernel depends on no additional axioms.
 
-## Структура
+## Layout
 
 ```
 formal/
-├── lakefile.lean          # Конфигурация Lake
-├── Main.lean              # Точка входа (компилирует весь проект)
-├── LambdaSNARK.lean       # Корневой модуль
+├── lakefile.lean          # Lake configuration
+├── Main.lean              # Entry point that compiles the whole project
+├── LambdaSNARK.lean       # Root module
 └── LambdaSNARK/
     ├── ForkingInfrastructure.lean  # heavy-row, fork-success, extraction
-    ├── Core.lean                    # R1CS, свидетели, модель противника
-    ├── Polynomial.lean              # Инструменты для полиномов & Z_H
-    ├── Soundness.lean               # Сборка теоремы знания
-    └── tests/                       # Примеры сертификатов
+    ├── Core.lean                    # R1CS, witnesses, adversary model
+    ├── Polynomial.lean              # Polynomial toolkit and Z_H helpers
+    ├── Soundness.lean               # Assembly of the knowledge theorem
+    └── tests/                       # Certificate examples
 ```
 
-## Сборка и проверки
+## Build and Checks
 
 ```bash
-# Сборка библиотеки и регрессионных лемм
+# Build the library and regression lemmas
 lake build LambdaSNARK
 
-# Изучить конкретный модуль в интерактивном режиме (пример)
+# Inspect a concrete module in interactive mode (example)
 lake env lean LambdaSNARK/ForkingInfrastructure.lean
 
-# Прогнать Lean-тесты/примеры
+# Run Lean tests/examples
 lake env lean tests/ForkingCertificateExample.lean
 ```
 
-## Текущее состояние (ноябрь 2025)
+## Current Status (November 2025)
 
-- ✅ Лемма о вероятности успеха: `successProbability_eq_successfulRandomness_card_div`
-- ✅ Heavy-row лемма: конструктивная реконструкция «тяжёлых» коммитментов
-- ✅ Форкинг с нижней границей: `fork_success_bound` (ε²/2 − 1/|F|)
-- ✅ Экстракция свидетеля: `tests/ForkingCertificateExample.lean`
-- ✅ Healthcare-quotient сертификат: `tests/HealthcareQuotient.lean`
-- ✅ Полиномиальный инструментарий для деления на Z_H и связок с PMF
-- ⏳ Интеграция в `Soundness.lean` (полная теорема знания)
-- ⏳ Completeness & zero-knowledge (следующие этапы)
+- ✅ Success probability lemma: `successProbability_eq_successfulRandomness_card_div`
+- ✅ Heavy-row lemma: constructive reconstruction of "heavy" commitments
+- ✅ Forking lower bound: `fork_success_bound` (ε²/2 − 1/|F|)
+- ✅ Witness extraction: `tests/ForkingCertificateExample.lean`
+- ✅ Healthcare quotient certificate: `tests/HealthcareQuotient.lean`
+- ✅ Polynomial toolkit for division by Z_H and PMF links
+- ⏳ Integration into `Soundness.lean` (full knowledge theorem)
+- ⏳ Completeness and zero-knowledge (next milestones)
 
-## Дорожная карта
+## Roadmap
 
-- Связать доказанные вероятностные леммы с `Soundness.lean`
-- Добавить новые тестовые схемы (PLAQUETTE, LWE, дополнительные R1CS)
-- Формализовать completeness и zero-knowledge внутри Lean 4
-- Поддерживать CI с `lake build LambdaSNARK` на каждый коммит
+- Connect the proven probabilistic lemmas with `Soundness.lean`
+- Add new test circuits (PLAQUETTE, LWE, additional R1CS instances)
+- Formalize completeness and zero-knowledge within Lean 4
+- Keep CI running `lake build LambdaSNARK` on every commit
 
-## Ключевые результаты
+## Key Results
 
-### Heavy-row & Fork Success
+### Heavy-row and Fork Success
 
 - `successProbability_eq_successfulRandomness_card_div`
 - `heavy_row_lemma`
 - `fork_success_bound`
 
-Эти утверждения образуют сердцевину форкинг-аргумента и уже формально доказаны.
+These statements form the core of the forking argument and are already formally proved.
 
-### Экстракция свидетеля
+### Witness Extraction
 
 ```lean
 theorem extraction_soundness … :=
   …
 ```
 
-Полная связка с реальными примерами доступна в `tests/ForkingCertificateExample.lean`
-и `tests/HealthcareQuotient.lean`.
+The complete linkage with concrete examples is available in
+`tests/ForkingCertificateExample.lean` and `tests/HealthcareQuotient.lean`.
 
-## Источники
+## References
 
 - Lean 4 manual: https://leanprover.github.io/lean4/doc/
-- Mathlib4: https://github.com/leanprover-community/mathlib4 (модули `PMF`, `ENNReal`, `Polynomial`)
-- Обзор проекта ΛSNARK-R: ../README.md
+- Mathlib4: https://github.com/leanprover-community/mathlib4 (modules `PMF`, `ENNReal`, `Polynomial`)
+- ΛSNARK-R project overview: ../README.md

@@ -1179,7 +1179,7 @@ lemma exists_commitMass_pos :
   have h_contra : (0 : ENNReal) = 1 := h_zero.symm.trans h_total
   exact (zero_ne_one : (0 : ENNReal) ≠ 1) h_contra
 
-/- Разложение условной массы успеха по вызовам. -/
+/- Decomposition of the conditional success mass across challenge calls. -/
 lemma successMassGivenCommit_eq_tsum_successMassGivenCommitChallenge
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
@@ -1274,7 +1274,7 @@ lemma successMassGivenCommit_eq_sum_successMassGivenCommitChallenge
     successMassGivenCommit_eq_tsum_successMassGivenCommitChallenge (VC := VC) (cs := cs)
       (A := A) (x := x) (secParam := secParam) (comm_tuple := comm_tuple)
 
-/-- Разложение общей массы успеха на сумму условных масс по кортежам коммитов. -/
+/-- Decomposition of the total success mass into a sum of conditional masses over commitment tuples. -/
 lemma successMass_eq_tsum_successMassGivenCommit {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
     (x : PublicInput F cs.nPub) (secParam : ℕ) :
@@ -1751,7 +1751,7 @@ lemma successMass_le_heavyMass_add_eps
       using this
   exact h_base.trans (add_le_add_left h_mul_le _)
 
-/-- Число тяжёлых случайностей оценивает запас вероятности успеха. -/
+/-- The number of heavy randomness samples bounds the slack in success probability. -/
 lemma heavyRandomness_card_lower_bound
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
@@ -1843,7 +1843,7 @@ lemma heavyRandomness_finset_lower_bound
   simpa [h_cast]
     using h
 
-/-- Ненулевая прибавка к вероятности успеха гарантирует существование тяжёлой случайности. -/
+/-- A nonzero boost in success probability guarantees the existence of heavy randomness. -/
 lemma heavyRandomnessFinset_nonempty_of_successProbability_gt
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
@@ -1874,7 +1874,7 @@ lemma heavyRandomnessFinset_nonempty_of_successProbability_gt
     exact_mod_cast h_card_real_pos
   exact Finset.card_pos.mp h_card_pos
 
-/-- Существует конкретная случайность, делающая коммит тяжелым, если вероятность успеха превосходит ε. -/
+/-- There exists a specific randomness that makes a commitment heavy whenever the success probability exceeds ε. -/
 lemma exists_heavyRandomness_of_successProbability_gt
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     (VC : VectorCommitment F) (cs : R1CS F) (A : Adversary F VC)
@@ -1929,7 +1929,7 @@ lemma successMass_pos_of_successProbability_lt
         (A := A) (x := x) (secParam := secParam), h_zero]
   exact (ne_of_gt h_success_pos) (by simp [h_prob_zero])
 
-/-- Полное разложение массы успеха по кортежам коммитов и вызовам. -/
+/-- Full decomposition of the success mass over commitment tuples and challenge calls. -/
 lemma successMass_eq_tsum_successMassGivenCommitAndChallenge :
     successMass VC cs A x secParam =
       ∑' comm_tuple,
