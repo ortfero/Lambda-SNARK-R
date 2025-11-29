@@ -33,6 +33,18 @@ jobs:
           automake \
           libtool
 
+    - name: Fetch vcpkg
+      run: |
+        if [ ! -d vcpkg ]; then
+          git clone https://github.com/microsoft/vcpkg.git vcpkg
+          cd vcpkg
+          git checkout 74e6536215718009aae747d86d84b78376bf9e09
+        else
+          cd vcpkg
+          git fetch --depth=1 origin 74e6536215718009aae747d86d84b78376bf9e09
+          git checkout 74e6536215718009aae747d86d84b78376bf9e09
+        fi
+
     - name: Bootstrap vcpkg
       run: |
         ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
@@ -98,6 +110,18 @@ jobs:
           automake \
           libtool
 
+    - name: Fetch vcpkg
+      run: |
+        if [ ! -d vcpkg ]; then
+          git clone https://github.com/microsoft/vcpkg.git vcpkg
+          cd vcpkg
+          git checkout 74e6536215718009aae747d86d84b78376bf9e09
+        else
+          cd vcpkg
+          git fetch --depth=1 origin 74e6536215718009aae747d86d84b78376bf9e09
+          git checkout 74e6536215718009aae747d86d84b78376bf9e09
+        fi
+
     - name: Bootstrap vcpkg dependencies
       run: |
         ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
@@ -162,6 +186,22 @@ jobs:
           automake \
           libtool
 
+    - name: Fetch vcpkg
+      run: |
+        if [ ! -d vcpkg ]; then
+          git clone https://github.com/microsoft/vcpkg.git vcpkg
+          cd vcpkg
+          git checkout 74e6536215718009aae747d86d84b78376bf9e09
+        else
+          cd vcpkg
+          git fetch --depth=1 origin 74e6536215718009aae747d86d84b78376bf9e09
+          git checkout 74e6536215718009aae747d86d84b78376bf9e09
+        fi
+
+    - name: Bootstrap vcpkg
+      run: |
+        ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+        ./vcpkg/vcpkg install --triplet x64-linux
     - name: Bootstrap vcpkg
       run: |
         ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
