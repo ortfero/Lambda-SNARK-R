@@ -14,18 +14,36 @@ Install via **vcpkg** (recommended):
 git clone https://github.com/microsoft/vcpkg.git
 ./vcpkg/bootstrap-vcpkg.sh
 
-# Install dependencies
-./vcpkg/vcpkg install seal ntl gmp eigen3 libsodium gtest benchmark
+# Install dependencies (NTL is not packaged in vcpkg; install via system manager)
+./vcpkg/vcpkg install seal gmp eigen3 libsodium gtest benchmark
 ```
+
+Then install NTL separately:
+
+```bash
+# Linux (Ubuntu/Debian)
+sudo apt-get install libntl-dev
+
+# macOS (Homebrew)
+brew install ntl
+
+# From source (if needed)
+curl -LO https://www.shoup.net/ntl/ntl-11.5.1.tar.gz
+tar -xf ntl-11.5.1.tar.gz && cd ntl-11.5.1/src
+./configure SHARED=on NTL_GMP_LIP=on && make -j$(nproc) && sudo make install
+cd ../..
+```
+
+> **Note:** `vcpkg` builds `gmp` from source and requires system autotools (`autoconf`, `automake`, `libtool`). Install them before running `vcpkg install`.
 
 Or install system packages:
 
 ```bash
 # Ubuntu/Debian
-sudo apt-get install libseal-dev libntl-dev libgmp-dev libeigen3-dev libsodium-dev
+sudo apt-get install libseal-dev libntl-dev libgmp-dev libeigen3-dev libsodium-dev autoconf automake libtool
 
 # macOS
-brew install seal ntl gmp eigen libsodium
+brew install seal ntl gmp eigen libsodium autoconf automake libtool
 ```
 
 ## Building

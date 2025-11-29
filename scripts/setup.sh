@@ -35,8 +35,12 @@ if [[ "$OS" == "linux" ]]; then
         cmake \
         ninja-build \
         libgmp-dev \
+        libntl-dev \
         libeigen3-dev \
         libsodium-dev \
+        autoconf \
+        automake \
+        libtool \
         clang-format \
         clang-tidy
 elif [[ "$OS" == "macos" ]]; then
@@ -44,8 +48,12 @@ elif [[ "$OS" == "macos" ]]; then
         cmake \
         ninja \
         gmp \
+        ntl \
         eigen \
         libsodium \
+        autoconf \
+        automake \
+        libtool \
         clang-format
 fi
 echo -e "${GREEN}✓ System dependencies installed${NC}"
@@ -105,7 +113,7 @@ else
     echo -e "${YELLOW}⚠️  vcpkg not found. Clone manually for C++ dependencies:${NC}"
     echo -e "  git clone https://github.com/microsoft/vcpkg.git"
     echo -e "  ./vcpkg/bootstrap-vcpkg.sh"
-    echo -e "  ./vcpkg/vcpkg install seal ntl gmp gtest benchmark"
+    echo -e "  ./vcpkg/vcpkg install seal gmp gtest benchmark"
 fi
 echo ""
 
