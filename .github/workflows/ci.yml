@@ -142,7 +142,7 @@ jobs:
     
     - name: Install C++ dependencies (macOS)
       if: matrix.os == 'macos-latest'
-      run: brew install cmake ninja gmp eigen libsodium ntl
+      run: brew install cmake ninja gmp eigen libsodium ntl autoconf automake libtool
     
     - name: Check formatting
       working-directory: rust-api
