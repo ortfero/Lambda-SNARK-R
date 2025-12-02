@@ -123,6 +123,10 @@ jobs:
           git checkout 74e6536215718009aae747d86d84b78376bf9e09
         fi
 
+    - name: Install C++ dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: brew install cmake ninja gmp eigen libsodium ntl autoconf automake libtool
+
     - name: Select vcpkg triplet
       run: |
         if [ "${{ matrix.os }}" = "macos-latest" ]; then
@@ -140,10 +144,6 @@ jobs:
       run: |
         ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
         ./vcpkg/vcpkg install --triplet "$VCPKG_TRIPLET"
-    
-    - name: Install C++ dependencies (macOS)
-      if: matrix.os == 'macos-latest'
-      run: brew install cmake ninja gmp eigen libsodium ntl autoconf automake libtool
     
     - name: Check formatting
       working-directory: rust-api
