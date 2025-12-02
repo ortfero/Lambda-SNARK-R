@@ -1,8 +1,4 @@
-#![allow(
-    clippy::needless_borrow,
-    clippy::useless_vec,
-    clippy::same_item_push
-)]
+#![allow(clippy::needless_borrow, clippy::useless_vec, clippy::same_item_push)]
 
 //! Integration tests to increase code coverage for core prove/verify paths.
 //!
