@@ -4,8 +4,23 @@
 .DEFAULT_GOAL := help
 
 # VCPKG environment (adjust path to your installation)
-VCPKG_ROOT ?= /home/kirill/vcpkg
+VCPKG_ROOT ?= $(CURDIR)/vcpkg
+# Expand $HOME or ~ if provided by the user, now that the default is a plain path
+VCPKG_ROOT := $(shell sh -c 'eval echo "$$1"' sh "$(VCPKG_ROOT)")
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+ifeq ($(UNAME_S),Darwin)
+  ifeq ($(UNAME_M),arm64)
+    VCPKG_TRIPLET ?= arm64-osx
+  else
+    VCPKG_TRIPLET ?= x64-osx
+  endif
+else
+  VCPKG_TRIPLET ?= x64-linux
+endif
 export VCPKG_ROOT
+VCPKG_TOOLCHAIN := $(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake
+VCPKG_BIN := $(VCPKG_ROOT)/vcpkg
 
 # Colors for output
 CYAN := \033[0;36m
@@ -19,13 +34,32 @@ help: ## Show this help message
 
 setup: ## Install dependencies and setup development environment
 	@echo "$(CYAN)Setting up development environment...$(RESET)"
-	@# Check for vcpkg
-	@if [ ! -d "$$VCPKG_ROOT" ]; then \
-		echo "Error: VCPKG_ROOT ($$VCPKG_ROOT) not found."; \
-		echo "Install vcpkg: git clone https://github.com/microsoft/vcpkg && ./vcpkg/bootstrap-vcpkg.sh"; \
-		echo "Then set: export VCPKG_ROOT=/path/to/vcpkg"; \
+	@# Check autotools needed for gmp via vcpkg
+	@missing_autotools=""; \
+	for tool in autoconf automake libtool; do \
+		if ! command -v $$tool >/dev/null 2>&1; then \
+			missing_autotools="$$missing_autotools $$tool"; \
+		fi; \
+	done; \
+	if [ -n "$$missing_autotools" ]; then \
+		echo "Missing tools:$$missing_autotools (required for gmp build via vcpkg)."; \
+		echo "Install on macOS (Homebrew): brew install autoconf automake libtool"; \
+		echo "Install on Ubuntu/Debian:    sudo apt-get install autoconf automake libtool"; \
+		echo "Install on Fedora/RHEL:      sudo dnf install autoconf automake libtool"; \
 		exit 1; \
 	fi
+	@# Bootstrap project-local vcpkg if needed
+	@if [ ! -d "$$VCPKG_ROOT" ]; then \
+		echo "Cloning vcpkg into $$VCPKG_ROOT ..."; \
+		git clone https://github.com/microsoft/vcpkg.git "$$VCPKG_ROOT"; \
+	fi
+	@if [ ! -x "$$VCPKG_ROOT/vcpkg" ]; then \
+		echo "Bootstrapping vcpkg..."; \
+		(cd "$$VCPKG_ROOT" && ./bootstrap-vcpkg.sh -disableMetrics); \
+	fi
+	@# Install C++ deps from manifest (cpp-core/vcpkg.json)
+	@echo "Installing vcpkg dependencies (triplet=$(VCPKG_TRIPLET))..."
+	@cd "$$VCPKG_ROOT" && ./vcpkg install --triplet $(VCPKG_TRIPLET) --x-manifest-root="$(CURDIR)/cpp-core" --feature-flags=manifests
 	@# Install pre-commit hooks
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		pre-commit install; \
@@ -39,13 +73,21 @@ setup: ## Install dependencies and setup development environment
 
 build: ## Build C++ core and Rust API
 	@echo "$(CYAN)Building C++ core...$(RESET)"
-	@cd cpp-core && cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
+	@if [ ! -x "$(VCPKG_BIN)" ]; then \
+		echo "vcpkg not bootstrapped at $(VCPKG_ROOT). Run: make setup"; \
+		exit 1; \
+	fi
+	@cd cpp-core && cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN) && cmake --build build
 	@echo "$(CYAN)Building Rust API...$(RESET)"
 	@cd rust-api && cargo build --release
 	@echo "$(GREEN)✓ Build complete$(RESET)"
 
 build-dev: ## Build in debug mode
-	@cd cpp-core && cmake -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build
+	@if [ ! -x "$(VCPKG_BIN)" ]; then \
+		echo "vcpkg not bootstrapped at $(VCPKG_ROOT). Run: make setup"; \
+		exit 1; \
+	fi
+	@cd cpp-core && cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN) && cmake --build build
 	@cd rust-api && cargo build
 
 test: ## Run all tests
@@ -56,7 +98,12 @@ test: ## Run all tests
 	@echo "$(GREEN)✓ Tests complete$(RESET)"
 
 test-cpp: ## Run C++ tests only
-	@cd cpp-core/build && ctest --output-on-failure
+	@echo "$(CYAN)Running C++ tests...$(RESET)"
+	@if [ ! -d cpp-core/build ]; then \
+		echo "Configuring C++ build (Release)..."; \
+		cd cpp-core && cmake -B build -DCMAKE_BUILD_TYPE=Release -DLAMBDA_SNARK_BUILD_TESTS=ON -DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN); \
+	fi
+	@cd cpp-core/build && cmake --build . && ctest --output-on-failure
 
 test-rust: ## Run Rust tests only
 	@cd rust-api && cargo test --all
@@ -120,7 +167,7 @@ install: build ## Install library system-wide (requires sudo)
 ci: ci-cpp ci-rust ## Run full CI pipeline locally
 
 ci-cpp: ## CI for C++ (build + test + lint)
-	@cd cpp-core && cmake -B build -DCMAKE_BUILD_TYPE=Release -DLAMBDA_SNARK_BUILD_TESTS=ON
+	@cd cpp-core && cmake -B build -DCMAKE_BUILD_TYPE=Release -DLAMBDA_SNARK_BUILD_TESTS=ON -DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN)
 	@cd cpp-core/build && cmake --build . && ctest --output-on-failure
 
 ci-rust: ## CI for Rust (build + test + lint)

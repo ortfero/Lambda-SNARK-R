@@ -72,8 +72,8 @@ TEST_F(ConformanceTest, TV0_LinearSystem) {
     auto expected_json = read_file(get_tv_path("tv-0-linear-system", "expected.json"));
     
     // Extract parameters
-    uint64_t q = extract_int(params_json, "q");
-    uint32_t n = extract_int(params_json, "n");
+    auto q = extract_int(params_json, "q");
+    auto n = extract_int(params_json, "n");
     
     EXPECT_EQ(q, 17592186044417ULL);
     EXPECT_EQ(n, 4096);

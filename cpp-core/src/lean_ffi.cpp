@@ -120,7 +120,7 @@ std::string seal_pubkey_to_base64(const PublicKey& pk, const SEALContext& ctx) {
         std::string binary = oss.str();
         std::ostringstream hex_oss;
         hex_oss << std::hex << std::setfill('0');
-        for (unsigned char c : binary) {
+        for (char c : binary) {
             hex_oss << std::setw(2) << static_cast<int>(c);
         }
         return hex_oss.str();

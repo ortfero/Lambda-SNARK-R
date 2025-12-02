@@ -748,7 +748,7 @@ fn run_benchmark(max_constraints: usize, step: usize) -> anyhow::Result<()> {
 }
 
 /// Run Healthcare Diagnosis example: prove HIGH/MEDIUM/LOW risk without revealing patient data
-fn run_healthcare_example(seed: u64, verbose: bool) -> anyhow::Result<()> {
+fn run_healthcare_example(seed: u64, _verbose: bool) -> anyhow::Result<()> {
     println!("╔═══════════════════════════════════════════════════════════╗");
     println!("║   ΛSNARK-R: Healthcare Diagnosis (Privacy-Preserving)    ║");
     println!("╚═══════════════════════════════════════════════════════════╝");
@@ -959,7 +959,7 @@ fn run_healthcare_example(seed: u64, verbose: bool) -> anyhow::Result<()> {
     println!();
 
     let start = Instant::now();
-    let is_valid = verify_r1cs(&proof, public_inputs.clone(), &r1cs);
+    let is_valid = verify_r1cs(&proof, public_inputs, &r1cs);
     let verify_time = start.elapsed();
 
     println!(

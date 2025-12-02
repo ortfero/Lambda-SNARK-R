@@ -23,7 +23,7 @@ protected:
     void SetUp() override {
         // Initialize NTL context
         NTL::ZZ q;
-        NTL::conv(q, TEST_MODULUS);
+        NTL::conv(q, static_cast<unsigned long>(TEST_MODULUS));
         NTL::ZZ_p::init(q);
     }
 };
@@ -219,10 +219,14 @@ TEST_F(R1CSTest, ModularArithmetic) {
     
     // Compute c = (a * b) % q using NTL
     NTL::ZZ_p a_zp, b_zp, c_zp;
-    NTL::conv(a_zp, a);
-    NTL::conv(b_zp, b);
+    NTL::conv(a_zp, static_cast<long>(a));
+    NTL::conv(b_zp, static_cast<long>(b));
     c_zp = a_zp * b_zp;
-    uint64_t c = NTL::conv<uint64_t>(c_zp);
+    unsigned long c_ul = 0;
+    NTL::ZZ c_zz;
+    NTL::conv(c_zz, c_zp);
+    NTL::conv(c_ul, c_zz);
+    uint64_t c = c_ul;
 
     std::vector<uint64_t> witness = {1, a, b, c};
     EXPECT_TRUE(r1cs.validate_witness(witness));

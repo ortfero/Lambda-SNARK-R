@@ -47,7 +47,8 @@ R1CS::R1CS(const SparseMatrix& A,
 
     // Initialize NTL modulus context
     NTL::ZZ q;
-    NTL::conv(q, modulus_);
+    // Disambiguate conv overload for uint64_t by casting to unsigned long
+    NTL::conv(q, static_cast<unsigned long>(modulus_));
     NTL::ZZ_p::init(q);
 }
 
@@ -118,9 +119,9 @@ bool R1CS::validate_witness(const std::vector<uint64_t>& witness) const {
         // Use NTL for modular arithmetic
         NTL::ZZ_p az_i, bz_i, cz_i, product;
         
-        NTL::conv(az_i, Az[i]);
-        NTL::conv(bz_i, Bz[i]);
-        NTL::conv(cz_i, Cz[i]);
+        NTL::conv(az_i, static_cast<long>(Az[i]));
+        NTL::conv(bz_i, static_cast<long>(Bz[i]));
+        NTL::conv(cz_i, static_cast<long>(Cz[i]));
         
         product = az_i * bz_i;
 
@@ -161,13 +162,18 @@ std::vector<uint64_t> R1CS::sparse_mv(
 
         // Modular arithmetic: result[row] += value * vec[col] (mod q)
         NTL::ZZ_p acc, val, v;
-        NTL::conv(acc, result[entry.row]);
-        NTL::conv(val, entry.value);
-        NTL::conv(v, vec[entry.col]);
+        NTL::conv(acc, static_cast<long>(result[entry.row]));
+        NTL::conv(val, static_cast<long>(entry.value));
+        NTL::conv(v, static_cast<long>(vec[entry.col]));
         
         acc += val * v;
-        
-        result[entry.row] = NTL::conv<uint64_t>(acc);
+
+        // Convert ZZ_p back to host integer
+        unsigned long acc_ulong = 0;
+        NTL::ZZ acc_zz;
+        NTL::conv(acc_zz, acc);
+        NTL::conv(acc_ulong, acc_zz);
+        result[entry.row] = static_cast<uint64_t>(acc_ulong);
     }
 
     return result;
