@@ -130,6 +130,7 @@ fn main() {
         );
     }
     println!("cargo:rustc-link-lib=dylib=z"); // system zlib
+
     // If NTL/GMP were not found in vcpkg, fall back to common system locations (e.g., Homebrew)
     let mut have_ntl = vcpkg_lib.join("libntl.a").exists()
         || vcpkg_lib.join("libntl.dylib").exists()
