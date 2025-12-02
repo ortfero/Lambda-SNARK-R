@@ -122,7 +122,7 @@ fn main() {
         );
     }
     println!("cargo:rustc-link-lib=dylib=z"); // system zlib
-    // If NTL/GMP were not found in vcpkg, fall back to common system locations (e.g., Homebrew)
+                                             // If NTL/GMP were not found in vcpkg, fall back to common system locations (e.g., Homebrew)
     let mut have_ntl = vcpkg_lib.join("libntl.a").exists()
         || vcpkg_lib.join("libntl.dylib").exists()
         || vcpkg_lib.join("libntl.so").exists();
@@ -135,7 +135,10 @@ fn main() {
         if !have_ntl {
             let candidate = Path::new(prefix).join("libntl.dylib");
             if candidate.exists() {
-                println!("cargo:rustc-link-search=native={}", Path::new(prefix).display());
+                println!(
+                    "cargo:rustc-link-search=native={}",
+                    Path::new(prefix).display()
+                );
                 println!("cargo:rustc-link-lib=dylib=ntl");
                 have_ntl = true;
             }
@@ -143,7 +146,10 @@ fn main() {
         if !have_gmp {
             let candidate = Path::new(prefix).join("libgmp.dylib");
             if candidate.exists() {
-                println!("cargo:rustc-link-search=native={}", Path::new(prefix).display());
+                println!(
+                    "cargo:rustc-link-search=native={}",
+                    Path::new(prefix).display()
+                );
                 println!("cargo:rustc-link-lib=dylib=gmp");
                 have_gmp = true;
             }
@@ -202,7 +208,11 @@ fn main() {
 
     // Fallback to common system prefixes for NTL if not present in vcpkg
     let ntl_header = "NTL/ZZ_p.h";
-    let system_prefixes = ["/opt/homebrew/include", "/usr/local/include", "/usr/include"];
+    let system_prefixes = [
+        "/opt/homebrew/include",
+        "/usr/local/include",
+        "/usr/include",
+    ];
     for prefix in system_prefixes {
         let candidate = Path::new(prefix).join(ntl_header);
         if candidate.exists() {
