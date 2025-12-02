@@ -29,13 +29,18 @@ fn main() {
     println!("cargo:rerun-if-env-changed=VCPKG_TARGET_TRIPLET");
 
     // Link SEAL (from vcpkg) - check environment variable or default location
-    let vcpkg_root = env::var("VCPKG_ROOT").unwrap_or_else(|_| {
+    let vcpkg_root_raw = env::var("VCPKG_ROOT").unwrap_or_else(|_| {
         if PathBuf::from("/home/kirill/vcpkg").exists() {
             "/home/kirill/vcpkg".to_string()
         } else {
             "../../vcpkg".to_string()
         }
     });
+    let vcpkg_root = {
+        let path = PathBuf::from(&vcpkg_root_raw);
+        path.canonicalize().unwrap_or(path)
+    };
+    let vcpkg_root_str = vcpkg_root.to_string_lossy().to_string();
 
     let target = env::var("TARGET").expect("TARGET not set by Cargo");
     // Pick triplet from env or infer from target triple
@@ -72,7 +77,7 @@ fn main() {
             )
             .define("VCPKG_TARGET_TRIPLET", &vcpkg_triplet)
             .define("VCPKG_FEATURE_FLAGS", "manifests")
-            .env("VCPKG_ROOT", &vcpkg_root);
+            .env("VCPKG_ROOT", &vcpkg_root_str);
     }
 
     let seal_dir = PathBuf::from(&vcpkg_root)
@@ -99,7 +104,10 @@ fn main() {
     }
 
     println!("cargo:rustc-link-lib=static=lambda_snark_core");
-    let vcpkg_lib = PathBuf::from(format!("{}/installed/{}/lib", vcpkg_root, vcpkg_triplet));
+    let vcpkg_lib = vcpkg_root
+        .join("installed")
+        .join(&vcpkg_triplet)
+        .join("lib");
     let primary_lib_dir = if vcpkg_lib.exists() {
         Some(vcpkg_lib.clone())
     } else if cmake_vcpkg.exists() {
