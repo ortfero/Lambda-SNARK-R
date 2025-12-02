@@ -225,7 +225,7 @@ jobs:
     
     - name: Generate coverage
       working-directory: rust-api
-      run: cargo tarpaulin --all-features --workspace --out xml
+      run: cargo tarpaulin --all-features --workspace --out xml --timeout 300
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
