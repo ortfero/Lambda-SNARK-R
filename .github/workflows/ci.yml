@@ -48,7 +48,7 @@ jobs:
     - name: Bootstrap vcpkg
       run: |
         ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
-        ./vcpkg/vcpkg install --triplet x64-linux
+        ./vcpkg/vcpkg install --triplet x64-linux --x-manifest-root=cpp-core --feature-flags=manifests
     
     - name: Configure
       working-directory: cpp-core
@@ -122,14 +122,23 @@ jobs:
           git checkout 74e6536215718009aae747d86d84b78376bf9e09
         fi
 
+    - name: Select vcpkg triplet
+      run: |
+        if [ "${{ matrix.os }}" = "macos-latest" ]; then
+          arch=$(uname -m)
+          if [ "$arch" = "arm64" ]; then
+            echo "VCPKG_TRIPLET=arm64-osx" >> "$GITHUB_ENV"
+          else
+            echo "VCPKG_TRIPLET=x64-osx" >> "$GITHUB_ENV"
+          fi
+        else
+          echo "VCPKG_TRIPLET=x64-linux" >> "$GITHUB_ENV"
+        fi
+
     - name: Bootstrap vcpkg dependencies
       run: |
         ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
-        if [ "${{ matrix.os }}" = "macos-latest" ]; then
-          ./vcpkg/vcpkg install --triplet x64-osx
-        else
-          ./vcpkg/vcpkg install --triplet x64-linux
-        fi
+        ./vcpkg/vcpkg install --triplet "$VCPKG_TRIPLET"
     
     - name: Install C++ dependencies (macOS)
       if: matrix.os == 'macos-latest'
