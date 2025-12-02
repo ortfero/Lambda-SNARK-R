@@ -1,4 +1,4 @@
-#![allow(clippy::needless_borrow, clippy::useless_vec, clippy::same_item_push)]
+#![allow(clippy::same_item_push)]
 
 //! Integration tests to increase code coverage for core prove/verify paths.
 //!
@@ -33,9 +33,9 @@ fn test_prove_verify_simple_multiplication() {
     let b = 11u64;
     let c = (a * b) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, a, b, c];
@@ -54,9 +54,9 @@ fn test_prove_verify_zk_simple_multiplication() {
     let b = 17u64;
     let c = (a * b) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, a, b, c];
@@ -78,9 +78,9 @@ fn test_prove_verify_two_multiplications() {
     let c = (a * b) % NTT_MODULUS;
     let d = (a * c) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0, 0], vec![0, 1, 0, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0, 0], vec![0, 0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1, 0], vec![0, 0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0, 0], vec![0, 1, 0, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0, 0], vec![0, 0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1, 0], vec![0, 0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(2, 5, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, a, b, c, d];
@@ -100,9 +100,9 @@ fn test_prove_verify_zk_two_multiplications() {
     let c = (a * b) % NTT_MODULUS;
     let d = (b * c) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0, 0], vec![0, 0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0, 0], vec![0, 0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1, 0], vec![0, 0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0, 0], vec![0, 0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0, 0], vec![0, 0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1, 0], vec![0, 0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(2, 5, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, a, b, c, d];
@@ -126,9 +126,9 @@ fn test_prove_different_seeds() {
     let b = 3u64;
     let c = (a * b) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, a, b, c];
@@ -154,9 +154,9 @@ fn test_prove_zk_different_seeds() {
     let b = 9u64;
     let c = (a * b) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, a, b, c];
@@ -189,9 +189,9 @@ fn test_prove_verify_two_public_inputs() {
     let priv_val = 7u64;
     let result1 = (pub1 * priv_val) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 5, 3, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, pub1, pub2, priv_val, result1];
@@ -212,9 +212,9 @@ fn test_prove_verify_zk_three_public_inputs() {
     let priv_val = 11u64;
     let result = (pub1 * priv_val) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 6, 4, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, pub1, pub2, pub3, priv_val, result];
@@ -282,7 +282,7 @@ fn test_prove_verify_four_constraints() {
 #[ignore] // IGNORED: Complex 8-constraint system, hard to debug witness
 fn test_prove_verify_zk_eight_constraints() {
     // 8 independent multiplication gates: witness[1+3i] * witness[2+3i] = witness[3+3i]
-    let vals = vec![2u64, 3, 5, 7, 11, 13, 17, 19];
+    let vals = [2u64, 3, 5, 7, 11, 13, 17, 19];
     let mut witness = vec![1]; // witness[0] = 1
 
     for i in 0..8 {
@@ -337,9 +337,9 @@ fn test_verify_rejects_wrong_public_input() {
     let b = 11u64;
     let c = (a * b) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, a, b, c];
@@ -366,9 +366,9 @@ fn test_verify_zk_rejects_wrong_public_input() {
     let b = 17u64;
     let c = (a * b) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, a, b, c];
@@ -400,9 +400,9 @@ fn test_prove_verify_small_modulus() {
     let b = 7u64;
     let c = (a * b) % modulus;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, modulus);
     let witness = vec![1, a, b, c];
@@ -429,9 +429,9 @@ fn test_prove_verify_dense_matrices() {
     let b = 3u64;
     let c = (a * b) % NTT_MODULUS;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0], vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0], vec![0, 1, 0, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1], vec![0, 1, 0, 0]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0], vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0], vec![0, 1, 0, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1], vec![0, 1, 0, 0]]);
 
     let r1cs = R1CS::new(2, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, a, b, c];
