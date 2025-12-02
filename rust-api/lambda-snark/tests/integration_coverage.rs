@@ -1,3 +1,9 @@
+#![allow(
+    clippy::needless_borrow,
+    clippy::useless_vec,
+    clippy::same_item_push
+)]
+
 //! Integration tests to increase code coverage for core prove/verify paths.
 //!
 //! Focus: lib.rs (prove_r1cs, prove_r1cs_zk, verify_r1cs, verify_r1cs_zk)
@@ -476,10 +482,8 @@ fn test_prove_verify_large_witness_32() {
 
     let r1cs = R1CS::new(m, n, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
 
-    let mut witness = vec![1];
-    for _ in 1..n {
-        witness.push(2);
-    }
+    let mut witness = vec![1; n];
+    witness[1..].fill(2);
 
     // Fix constraints: witness[1+i] * witness[5+i] = witness[9+i]
     for i in 0..m {
@@ -526,10 +530,8 @@ fn test_prove_verify_zk_large_witness_32() {
 
     let r1cs = R1CS::new(m, n, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
 
-    let mut witness = vec![1];
-    for _ in 1..n {
-        witness.push(3);
-    }
+    let mut witness = vec![1; n];
+    witness[1..].fill(3);
 
     for i in 0..m {
         let a_val = witness[1 + i];

@@ -258,7 +258,7 @@ mod tests {
     use super::*;
 
     /// Helper: Modular exponentiation (a^b mod m)
-    fn mod_pow(mut base: u64, mut exp: u64, modulus: u64) -> u64 {
+    fn mod_pow(base: u64, mut exp: u64, modulus: u64) -> u64 {
         if modulus == 1 {
             return 0;
         }
@@ -329,6 +329,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn test_primitive_root_of_unity() {
         const Q: u64 = NTT_MODULUS;
         const OMEGA: u64 = NTT_PRIMITIVE_ROOT;
@@ -348,6 +349,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn test_ntt_root_hierarchy() {
         const Q: u64 = NTT_MODULUS;
         const OMEGA: u64 = NTT_PRIMITIVE_ROOT;
@@ -378,6 +380,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn test_legacy_vs_ntt_modulus() {
         // NTT modulus should be larger (better security)
         assert!(

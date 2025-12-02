@@ -49,7 +49,8 @@ fn build_circuit(m: usize) -> R1CS {
 /// For m constraints, we have:
 /// - 1 constant variable (always 1)
 /// - 3m variables (x1, x2, x3 per constraint)
-/// Total: n = 1 + 3m
+///
+///   Total: n = 1 + 3m
 fn build_witness(r1cs: &R1CS) -> Vec<u64> {
     // Witness: all variables = 1 (satisfies x1·x2=x3 → 1·1=1)
     vec![1u64; r1cs.n]

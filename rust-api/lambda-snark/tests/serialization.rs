@@ -1,6 +1,5 @@
 //! Serialization tests for proof components.
 
-use bincode;
 use lambda_snark::{Challenge, Commitment, LweContext, Opening, Polynomial};
 use lambda_snark_core::{Field, Params, Profile, SecurityLevel};
 

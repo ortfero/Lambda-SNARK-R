@@ -1,7 +1,7 @@
+#![allow(clippy::same_item_push)]
 //! Edge case tests for ΛSNARK-R.
 //!
 //! This module tests boundary conditions, minimal configurations, and extreme values.
-
 use lambda_snark::{prove_r1cs, verify_r1cs, LweContext, Params, Polynomial, SparseMatrix, R1CS};
 use lambda_snark_core::{Field, Profile, SecurityLevel};
 
@@ -14,9 +14,9 @@ const NTT_MODULUS: u64 = 17592186044417;
 #[test]
 fn test_m1_single_constraint() {
     // R1CS with m=1: single constraint a*b=c
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
 
@@ -38,9 +38,9 @@ fn test_m1_single_constraint() {
 #[test]
 fn test_m2_minimal_ntt() {
     // m=2: minimal NTT configuration (2 is power of 2)
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0], vec![0, 0, 1, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0], vec![0, 0, 0, 1]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1], vec![0, 1, 0, 0]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0], vec![0, 0, 1, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0], vec![0, 0, 0, 1]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1], vec![0, 1, 0, 0]]);
 
     let _r1cs = R1CS::new(2, 4, 2, a_mat, b_mat, c_mat, NTT_MODULUS);
 
@@ -56,9 +56,9 @@ fn test_m2_minimal_ntt() {
     let c = (a * b) % NTT_MODULUS;
     let d = ((a as u128 * c as u128) % NTT_MODULUS as u128) as u64;
 
-    let a_mat2 = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0, 0], vec![0, 1, 0, 0, 0]]);
-    let b_mat2 = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0, 0], vec![0, 0, 0, 1, 0]]);
-    let c_mat2 = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1, 0], vec![0, 0, 0, 0, 1]]);
+    let a_mat2 = SparseMatrix::from_dense(&[vec![0, 1, 0, 0, 0], vec![0, 1, 0, 0, 0]]);
+    let b_mat2 = SparseMatrix::from_dense(&[vec![0, 0, 1, 0, 0], vec![0, 0, 0, 1, 0]]);
+    let c_mat2 = SparseMatrix::from_dense(&[vec![0, 0, 0, 1, 0], vec![0, 0, 0, 0, 1]]);
 
     let r1cs2 = R1CS::new(2, 5, 2, a_mat2, b_mat2, c_mat2, NTT_MODULUS);
     let witness2 = vec![1, a, b, c, d];
@@ -75,9 +75,9 @@ fn test_zero_constraints() {
     // m=0: no constraints (trivially satisfied)
     // Note: SparseMatrix::from_dense(&vec![]) creates 0×0, not 0×1
     // Would need SparseMatrix::new(0, 1, vec![0], vec![], vec![]) manually
-    let a_mat = SparseMatrix::from_dense(&vec![]);
-    let b_mat = SparseMatrix::from_dense(&vec![]);
-    let c_mat = SparseMatrix::from_dense(&vec![]);
+    let a_mat = SparseMatrix::from_dense(&[]);
+    let b_mat = SparseMatrix::from_dense(&[]);
+    let c_mat = SparseMatrix::from_dense(&[]);
 
     // m=0 (no constraints), n=1 (just constant 1), l=1 (one public input)
     let r1cs = R1CS::new(0, 1, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
@@ -121,7 +121,7 @@ fn test_field_max_element() {
 #[test]
 fn test_sparse_matrix_empty() {
     // Empty matrix (all zeros)
-    let empty = SparseMatrix::from_dense(&vec![vec![0, 0, 0]]);
+    let empty = SparseMatrix::from_dense(&[vec![0, 0, 0]]);
     let v = vec![1, 2, 3];
     let result = empty.mul_vec(&v, NTT_MODULUS);
     assert_eq!(result, vec![0]);
@@ -130,7 +130,7 @@ fn test_sparse_matrix_empty() {
 #[test]
 fn test_sparse_matrix_single_entry() {
     // 1×1 matrix with single entry
-    let single = SparseMatrix::from_dense(&vec![vec![42]]);
+    let single = SparseMatrix::from_dense(&[vec![42]]);
     let v = vec![10];
     let result = single.mul_vec(&v, NTT_MODULUS);
     assert_eq!(result, vec![420 % NTT_MODULUS]);
@@ -250,9 +250,9 @@ fn test_large_witness_size_128() {
 #[test]
 fn test_prove_verify_minimal_m1() {
     // End-to-end proof for m=1 constraint
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, 2, 3, 6];
@@ -280,9 +280,9 @@ fn test_prove_verify_boundary_values() {
     // Test with witness containing q-1 (max field value)
     let max_val = NTT_MODULUS - 1;
 
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
 
@@ -349,9 +349,9 @@ fn test_polynomial_high_degree() {
 
 #[test]
 fn test_deterministic_proof_with_seed_0() {
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, 2, 3, 6];
@@ -381,9 +381,9 @@ fn test_deterministic_proof_with_seed_0() {
 
 #[test]
 fn test_different_seeds_produce_different_proofs() {
-    let a_mat = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c_mat = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a_mat = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b_mat = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c_mat = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     let r1cs = R1CS::new(1, 4, 1, a_mat, b_mat, c_mat, NTT_MODULUS);
     let witness = vec![1, 2, 3, 6];

@@ -1,3 +1,5 @@
+#![allow(clippy::useless_vec)]
+
 //! Property-based tests for ΛSNARK-R core operations.
 //!
 //! Uses proptest to verify algebraic properties and invariants

@@ -4,18 +4,18 @@ use lambda_snark::*;
 
 /// Create simple multiplication circuit: x * y = z
 fn create_multiplication_circuit() -> R1CS {
-    let a = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     R1CS::new(1, 4, 2, a, b, c, 17592186044417)
 }
 
 /// Create two-multiplication circuit
 fn create_two_mult_circuit() -> R1CS {
-    let a = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0, 0, 0], vec![0, 0, 0, 1, 0, 0]]);
-    let b = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0, 0, 0], vec![0, 0, 0, 0, 1, 0]]);
-    let c = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1, 0, 0], vec![0, 0, 0, 0, 0, 1]]);
+    let a = SparseMatrix::from_dense(&[vec![0, 1, 0, 0, 0, 0], vec![0, 0, 0, 1, 0, 0]]);
+    let b = SparseMatrix::from_dense(&[vec![0, 0, 1, 0, 0, 0], vec![0, 0, 0, 0, 1, 0]]);
+    let c = SparseMatrix::from_dense(&[vec![0, 0, 0, 1, 0, 0], vec![0, 0, 0, 0, 0, 1]]);
 
     R1CS::new(2, 6, 3, a, b, c, 17592186044417)
 }
@@ -104,7 +104,7 @@ fn test_verify_r1cs_forged_q_alpha() {
     proof.q_alpha = (proof.q_alpha + 1) % r1cs.modulus;
 
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs(&proof, public_inputs, &r1cs);
 
     assert!(!valid, "Forged Q(α) should fail verification");
 }
@@ -122,7 +122,7 @@ fn test_verify_r1cs_forged_q_beta() {
     proof.q_beta = (proof.q_beta + 1) % r1cs.modulus;
 
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs(&proof, public_inputs, &r1cs);
 
     assert!(!valid, "Forged Q(β) should fail verification");
 }
@@ -140,7 +140,7 @@ fn test_verify_r1cs_forged_a_z_alpha() {
     proof.a_z_alpha = (proof.a_z_alpha + 1) % r1cs.modulus;
 
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs(&proof, public_inputs, &r1cs);
 
     assert!(!valid, "Forged A_z(α) should fail verification");
 }
@@ -158,7 +158,7 @@ fn test_verify_r1cs_forged_b_z_beta() {
     proof.b_z_beta = (proof.b_z_beta + 1) % r1cs.modulus;
 
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs(&proof, public_inputs, &r1cs);
 
     assert!(!valid, "Forged B_z(β) should fail verification");
 }
@@ -176,7 +176,7 @@ fn test_verify_r1cs_opening_mismatch_alpha() {
     proof.q_alpha = (proof.q_alpha + 1) % r1cs.modulus;
 
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs(&proof, public_inputs, &r1cs);
 
     assert!(!valid, "Opening mismatch should fail verification");
 }
@@ -187,7 +187,7 @@ fn test_verify_r1cs_multiple_witnesses() {
     let r1cs = create_multiplication_circuit();
     let ctx = setup_ctx().unwrap();
 
-    let test_cases = vec![
+    let test_cases = [
         vec![1, 2, 3, 6],     // 2 × 3 = 6
         vec![1, 5, 7, 35],    // 5 × 7 = 35
         vec![1, 11, 13, 143], // 11 × 13 = 143
@@ -198,7 +198,7 @@ fn test_verify_r1cs_multiple_witnesses() {
         let public_inputs = r1cs.public_inputs(witness);
 
         assert!(
-            verify_r1cs(&proof, &public_inputs, &r1cs),
+            verify_r1cs(&proof, public_inputs, &r1cs),
             "Proof {} should verify",
             i
         );
@@ -225,7 +225,7 @@ fn test_verify_r1cs_soundness_two_challenges() {
 
     let public_inputs = r1cs.public_inputs(&witness);
     assert!(
-        !verify_r1cs(&proof, &public_inputs, &r1cs),
+        !verify_r1cs(&proof, public_inputs, &r1cs),
         "Should fail with forged α equation"
     );
 
@@ -234,7 +234,7 @@ fn test_verify_r1cs_soundness_two_challenges() {
     proof.q_beta = (orig_q_beta + 1) % r1cs.modulus;
 
     assert!(
-        !verify_r1cs(&proof, &public_inputs, &r1cs),
+        !verify_r1cs(&proof, public_inputs, &r1cs),
         "Should fail with forged β equation"
     );
 }
@@ -260,7 +260,7 @@ fn test_verify_r1cs_completeness() {
     let r1cs = create_multiplication_circuit();
     let ctx = setup_ctx().unwrap();
 
-    let valid_witnesses = vec![
+    let valid_witnesses = [
         vec![1, 1, 1, 1],         // 1 × 1 = 1
         vec![1, 0, 5, 0],         // 0 × 5 = 0
         vec![1, 100, 200, 20000], // 100 × 200 = 20000
@@ -275,7 +275,7 @@ fn test_verify_r1cs_completeness() {
         let public_inputs = r1cs.public_inputs(&witness);
 
         assert!(
-            verify_r1cs(&proof, &public_inputs, &r1cs),
+            verify_r1cs(&proof, public_inputs, &r1cs),
             "Valid witness {:?} should verify",
             witness
         );
@@ -294,7 +294,7 @@ fn test_verify_r1cs_deterministic_verification() {
 
     // Verify multiple times
     for _ in 0..5 {
-        assert!(verify_r1cs(&proof, &public_inputs, &r1cs));
+        assert!(verify_r1cs(&proof, public_inputs, &r1cs));
     }
 }
 
@@ -335,7 +335,7 @@ fn test_verify_r1cs_all_evaluations_checked() {
         }
 
         assert!(
-            !verify_r1cs(&proof, &public_inputs, &r1cs),
+            !verify_r1cs(&proof, public_inputs, &r1cs),
             "Forging {} should fail verification",
             field
         );

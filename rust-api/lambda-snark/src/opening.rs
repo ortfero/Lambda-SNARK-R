@@ -306,7 +306,7 @@ mod tests {
         assert_eq!(opening.evaluation(), expected_eval);
 
         // Check witness contains randomness
-        assert!(opening.witness().len() > 0);
+        assert!(!opening.witness().is_empty());
         assert_eq!(opening.witness()[0], randomness);
     }
 

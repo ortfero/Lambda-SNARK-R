@@ -181,7 +181,7 @@ fn test_verify_completeness() {
 
     for (witness, public_inputs) in test_cases {
         let proof = prove_simple(&witness, &public_inputs, &ctx, TEST_MODULUS, 0xBEEF)
-            .expect(&format!("Proof failed for witness {:?}", witness));
+            .unwrap_or_else(|_| panic!("Proof failed for witness {:?}", witness));
 
         let valid = verify_simple(&proof, &public_inputs, TEST_MODULUS);
         assert!(valid, "Valid proof for witness {:?} should verify", witness);

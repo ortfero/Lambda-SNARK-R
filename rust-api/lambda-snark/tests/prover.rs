@@ -47,14 +47,12 @@ fn test_tv1_prove() {
     println!("Opening f(α): {}", proof.opening.evaluation().value());
 
     // Validate proof components
-    assert_eq!(
+    assert!(
         proof.challenge.alpha().value() < TEST_MODULUS,
-        true,
         "Challenge should be in field"
     );
-    assert_eq!(
+    assert!(
         proof.opening.evaluation().value() < TEST_MODULUS,
-        true,
         "Opening evaluation should be in field"
     );
 
@@ -101,14 +99,12 @@ fn test_tv2_prove() {
     println!("Opening f(α): {}", proof.opening.evaluation().value());
 
     // Validate proof components
-    assert_eq!(
+    assert!(
         proof.challenge.alpha().value() < TEST_MODULUS,
-        true,
         "Challenge should be in field"
     );
-    assert_eq!(
+    assert!(
         proof.opening.evaluation().value() < TEST_MODULUS,
-        true,
         "Opening evaluation should be in field"
     );
 

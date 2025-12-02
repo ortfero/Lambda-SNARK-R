@@ -417,7 +417,7 @@ fn test_practical_distinguisher() {
     // Accuracy should stay near random (50%) but SEAL randomness can skew the
     // tiny sample. Still guard against obvious leaks.
     assert!(
-        accuracy >= 0.30 && accuracy <= 0.70,
+        (0.30..=0.70).contains(&accuracy),
         "Distinguisher should not be significantly better than random (got {:.2}%)",
         accuracy * 100.0
     );
@@ -436,7 +436,7 @@ fn test_simulator_different_degrees() {
     for degree in [0, 1, 3, 10, 20] {
         let sim_proof =
             simulate_proof(degree, &public_inputs, &ctx, TEST_MODULUS, 0x1234, Some(42))
-                .expect(&format!("Failed to simulate proof with degree {}", degree));
+                .unwrap_or_else(|_| panic!("Failed to simulate proof with degree {}", degree));
 
         assert!(sim_proof.challenge().alpha().value() < TEST_MODULUS);
     }

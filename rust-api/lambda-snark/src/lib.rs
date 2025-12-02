@@ -55,6 +55,18 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(missing_docs, rust_2018_idioms)]
+#![allow(
+    clippy::needless_range_loop,
+    clippy::useless_vec,
+    clippy::manual_is_multiple_of,
+    clippy::needless_borrow,
+    clippy::needless_borrows_for_generic_args,
+    clippy::type_complexity,
+    clippy::needless_doctest_main,
+    clippy::len_zero,
+    clippy::empty_line_after_doc_comments,
+    clippy::unnecessary_cast
+)]
 
 pub use lambda_snark_core::Error as CoreError;
 pub use lambda_snark_core::{Field, Params, Profile, SecurityLevel, Witness};

@@ -111,7 +111,7 @@ fn test_zk_proof_verifies() {
 
     // Verify proof
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs_zk(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs_zk(&proof, public_inputs, &r1cs);
 
     assert!(valid, "Valid ZK proof should verify");
     println!("✅ ZK proof verified for m={}", m);
@@ -156,11 +156,11 @@ fn test_zk_different_blinding_factors() {
     // Both proofs should verify
     let public_inputs = r1cs.public_inputs(&witness);
     assert!(
-        verify_r1cs_zk(&proof1, &public_inputs, &r1cs),
+        verify_r1cs_zk(&proof1, public_inputs, &r1cs),
         "Proof 1 should verify"
     );
     assert!(
-        verify_r1cs_zk(&proof2, &public_inputs, &r1cs),
+        verify_r1cs_zk(&proof2, public_inputs, &r1cs),
         "Proof 2 should verify"
     );
 
@@ -203,11 +203,11 @@ fn test_zk_vs_non_zk_compatibility() {
     // Both should verify
     let public_inputs = r1cs.public_inputs(&witness);
     assert!(
-        verify_r1cs(&proof_non_zk, &public_inputs, &r1cs),
+        verify_r1cs(&proof_non_zk, public_inputs, &r1cs),
         "Non-ZK proof should verify"
     );
     assert!(
-        verify_r1cs_zk(&proof_zk, &public_inputs, &r1cs),
+        verify_r1cs_zk(&proof_zk, public_inputs, &r1cs),
         "ZK proof should verify"
     );
 
@@ -277,7 +277,7 @@ fn test_zk_large_circuit() {
 
     // Verify proof
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs_zk(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs_zk(&proof, public_inputs, &r1cs);
 
     assert!(valid, "Valid ZK proof should verify for m=64");
     println!("✅ ZK proof verified for large circuit (m={})", m);

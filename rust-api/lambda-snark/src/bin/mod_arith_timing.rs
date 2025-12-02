@@ -115,7 +115,7 @@ fn sample_inverse_input(rng: &mut ChaCha20Rng, class_one: bool) -> u64 {
                 return candidate;
             }
         } else {
-            let candidate = ((rng.next_u64() % 1_048_576) + 1) as u64; // keep small
+            let candidate = (rng.next_u64() % 1_048_576) + 1; // keep small
             if candidate != 0 {
                 return candidate;
             }

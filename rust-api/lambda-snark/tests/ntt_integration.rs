@@ -51,8 +51,8 @@ mod ntt_integration_tests {
         let mut witness = vec![1u64]; // z[0] = 1 (constant)
 
         for i in 1..=m {
-            let a = ((2 * i as u64) % modulus) as u64;
-            let b = ((3 * i as u64) % modulus) as u64;
+            let a = (2 * i as u64) % modulus;
+            let b = (3 * i as u64) % modulus;
             let c = ((a as u128 * b as u128) % modulus as u128) as u64;
             witness.extend_from_slice(&[a, b, c]);
         }

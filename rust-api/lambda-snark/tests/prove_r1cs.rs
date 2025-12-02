@@ -10,9 +10,9 @@ fn create_multiplication_circuit() -> R1CS {
     // B = [0, 0, 1, 0]  (selects y)
     // C = [0, 0, 0, 1]  (selects z)
 
-    let a = SparseMatrix::from_dense(&vec![vec![0, 1, 0, 0]]);
-    let b = SparseMatrix::from_dense(&vec![vec![0, 0, 1, 0]]);
-    let c = SparseMatrix::from_dense(&vec![vec![0, 0, 0, 1]]);
+    let a = SparseMatrix::from_dense(&[vec![0, 1, 0, 0]]);
+    let b = SparseMatrix::from_dense(&[vec![0, 0, 1, 0]]);
+    let c = SparseMatrix::from_dense(&[vec![0, 0, 0, 1]]);
 
     R1CS::new(1, 4, 2, a, b, c, 17592186044417)
 }
@@ -23,15 +23,15 @@ fn create_two_mult_circuit() -> R1CS {
     // Constraint 1: x * y = t
     // Constraint 2: t * z = out
 
-    let a = SparseMatrix::from_dense(&vec![
+    let a = SparseMatrix::from_dense(&[
         vec![0, 1, 0, 0, 0, 0], // x
         vec![0, 0, 0, 1, 0, 0], // t
     ]);
-    let b = SparseMatrix::from_dense(&vec![
+    let b = SparseMatrix::from_dense(&[
         vec![0, 0, 1, 0, 0, 0], // y
         vec![0, 0, 0, 0, 1, 0], // z
     ]);
-    let c = SparseMatrix::from_dense(&vec![
+    let c = SparseMatrix::from_dense(&[
         vec![0, 0, 0, 1, 0, 0], // t
         vec![0, 0, 0, 0, 0, 1], // out
     ]);

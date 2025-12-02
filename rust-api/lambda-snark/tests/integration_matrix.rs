@@ -1,3 +1,5 @@
+#![allow(clippy::needless_borrow)]
+
 //! M5.3 Integration Testing: Test matrix for all combinations
 //!
 //! Test Matrix:
@@ -104,7 +106,7 @@ fn test_non_zk_lagrange_small() {
 
     // Verify proof
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs(&proof, public_inputs, &r1cs);
 
     assert!(valid, "Non-ZK Lagrange proof should verify (m={})", m);
     println!("✅ Non-ZK + Lagrange + m={} verified", m);
@@ -123,7 +125,7 @@ fn test_non_zk_lagrange_medium() {
     let proof = prove_r1cs(&r1cs, &witness, &ctx, 0x5678).expect("Failed to generate non-ZK proof");
 
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs(&proof, public_inputs, &r1cs);
 
     assert!(valid, "Non-ZK Lagrange proof should verify (m={})", m);
     println!("✅ Non-ZK + Lagrange + m={} verified", m);
@@ -143,7 +145,7 @@ fn test_non_zk_lagrange_large() {
     let proof = prove_r1cs(&r1cs, &witness, &ctx, 0x9ABC).expect("Failed to generate non-ZK proof");
 
     let public_inputs = r1cs.public_inputs(&witness);
-    let valid = verify_r1cs(&proof, &public_inputs, &r1cs);
+    let valid = verify_r1cs(&proof, public_inputs, &r1cs);
 
     assert!(valid, "Non-ZK Lagrange proof should verify (m={})", m);
     println!("✅ Non-ZK + Lagrange + m={} verified", m);
